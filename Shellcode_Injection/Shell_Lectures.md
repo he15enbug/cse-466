@@ -32,6 +32,25 @@
             ```
         - When testing this, we need to make sure `.text` is writable
             - `gcc -Wl,-N --static -nostdlib -o test test.s`
+    - Multi-stage shellcode
+        - *Stage 1*: `read(0, rip, 1000)`
+        - *Stage 2*: input anything we want
+- Communicate the flag when there is no way to output data (e.g., `close(1); close(2)`)
+    - ?
+- The `No-Execute` bit
+    - Modern architectures support memory permissions
+        - `PROT_READ`
+        - `PROT_WRITE`
+        - `PROT_EXEC`
+        - By default, the stack and the heap are not executable
+    - Memory can be made executable using the `mprotect()` system call
+        1. Trick the program into `mprotect()`ing (`PROT_EXEC`) our shellcode
+            - Most common way is ROP
+            - Other cases are situational
+        2. Jump to the shellcode
+    - Another injection point is JIT, Just In Time Compilation: JIT compilers need to generate and frequently re-generate code that is executed
+        - JIT spraying
+        - Mitigation: Sandboxing
 ## Data Execution Prevention
 
 ## Writing Shellcode
