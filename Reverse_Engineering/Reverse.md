@@ -16,3 +16,20 @@
     (gdb) x/8bx $rdi
     0x7fff1034afda: 0xf6    0xc9    0x11    0xf5    0x00    0x00    0x00    0x00
     ```
+- *babyrev_level13.0*: VM-based obfuscation. There are some VM code, but we don't need to reverse those code because we are clever, just go to the `memcmp()` and check its parameters. My input is `12345667`, the challenge compares my input directly with the key, without any process
+    ```
+    (gdb) x/8bx $rsi
+    0x7ffecd1a3004: 0x31    0x32    0x33    0x34    0x35    0x36    0x36    0x37
+    (gdb) x/8bx $rdi
+    0x7ffecd1a3024: 0x10    0x56    0xf9    0x84    0x5e    0xd5    0xd8    0x10
+    ```
+- *babyrev_level13.1*: same as the 13.0, debug it and get the key
+    ```
+    (gdb) x/8bx $rdi
+    0x7ffc819908a1: 0xb9    0xf8    0x6c    0x1b    0xe5    0x5a    0xa6    0x95
+    ```
+- *babyrev_level14.0*: same as 13.0
+- *babyrev_level14.1*: same as 13.1
+- *babyrev_level15.0*: same
+- *babyrev_level15.1*: same
+- *babyrev_level16.0*: from now on, we have to reverse the VM code even if we are clever.
