@@ -34,4 +34,149 @@
 - *babyrev_level15.1*: same as 14.1
 - *babyrev_level16.0*: from now on, we have to reverse the VM code even if we are clever. In this challenge, there is no `memcmp()`, but there are a few functions: `interpret_sys()`, `interpret_imm()`, `interpret_cmp()`, `interpret_add()`, `interpret_ldm()`, ...
     - Before each time a function with the prefix `interpret_` was called, the value passed to `rdi` is always `QWORD PTR [rbp-0x18]` (the `rbp` is the base pointer of the stack frame for `execute_program()`)
-    - `interpret_sys()`: in this function, there are s
+    - `interpret_sys`: 
+        ```
+        allocate 0x38 bytes on stack
+        store rdi to a local variable QWORD PTR [rbp-0x38], denoted as q_38
+        eax = edx (0x40)
+        edx = rsi (0x10)
+        store dl to BYTE PTR [rbp-0x3c], denoted as b_3c
+        store al to BYTE PTR [rbp-0x40], denoted as b_40
+        eax = b_40
+        edi = eax
+        call <describe_register>
+        rdx = rax
+        esi = b_3c
+        rdi = address of format string "[s] SYS %#hhx %s\n"
+        eax = 0
+        call <printf@plt>
+        eax = b_3c
+        if(eax & 0x20) {
+            // the key branch that will finally open "/flag"
+            rdi = address of "[s] ... open"
+            call <puts@plt>
+            ...
+        }
+        else {
+            eax = b_3c
+            if(eax & 0x10) {
+                rdi = address of "[s] ... read_memory"
+                call <puts@plt>
+                
+                rdx = q_38
+                
+                rax = q_38
+                eax = (BYTE PTR) (rax + 0x101)
+                rax += rdx
+                q_20 = rax
+                
+                rax = q_38
+                eax = (BYTE PTR) (rax + 0x101)
+                edx = 0x100 - eax
+                eax = edx
+                rdx = eax (movsxd)
+
+                rax = q_38
+                eax = (BYTE PTR) (rax + 0x102)
+                if(rdx <= rax) {
+                    rax = rdx
+                }
+                b_22 = al
+                edx = b_22
+
+                rax = q_38
+                eax = (BYTE PTR) (rax + 0x100)
+                rcx = q_20
+                rsi = q_20
+                edi = eax (0x00)
+                call <read@plt> (read 4 bytes from stdin)
+
+                ecx = b_40
+                rax = q_38
+                esi = b_40
+                rdi = q_38
+                call <write_register>
+
+                eax = b_3c
+                if(eax & 0x2) {
+                    
+                }
+                else {
+                    eax = b_3c
+                    if(eax & 0x1) {
+
+                    }
+                    else {
+                        eax = b_3c
+                        if(eax & 0x8) {
+
+                        }
+                        else {
+                            if(b_40 != 0) {
+                                edx = b_40
+                                rax = q_38
+                                esi = b_40
+                                rdi = q_38
+                                call <read_register> // <interpret_sys+612>
+                            }
+                            else {
+
+                            }
+                        }
+                    }
+                }
+            }
+            else {
+                
+            }
+        }
+        ```
+    - `describe_register`:
+        ```
+        switch(dil) {
+            case 0x40: eax = address of "a"; break;
+            case 0x08: eax = address of "b"; break;
+            case 0x02: eax = address of "c"; break;
+            case 0x01: eax = address of "d"; break;
+            case 0x10: eax = address of "s"; break;
+            case 0x20: eax = address of "i"; break;
+            case 0x04: eax = address of "f"; break;
+            case 0x00: eax = address of "NONE"; break;
+            default:   eax = address of "?";
+        }
+        ```
+    - `write_register`:
+        ```
+        q_08 = rdi
+        ecx = esi
+        eax = edx
+        edx = esi
+        b_0c = sil
+        b_10 = al
+
+        rax = q_08
+        edx = b_10
+        swithc(sil) {
+            case 0x40:
+                BYTE PTR [q_08+0x100]= b_10; break;
+            case 0x08:
+                BYTE PTR [q_08+0x101]= b_10; break;
+            case 0x02:
+                BYTE PTR [q_08+0x102]= b_10; break;
+            case 0x01:
+                BYTE PTR [q_08+0x103]= b_10; break;
+            case 0x10:
+                BYTE PTR [q_08+0x104]= b_10; break;
+            case 0x20:
+                BYTE PTR [q_08+0x105]= b_10; break;
+            case 0x04:
+                BYTE PTR [q_08+0x106]= b_10; break;
+            default:
+                rdi = address of "unknown register"
+                crash
+        }
+        ```
+    - `read_register`:
+        ```
+
+        ```
