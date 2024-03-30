@@ -30,6 +30,8 @@
     ```
 - *babyrev_level14.0*: same as 13.0
 - *babyrev_level14.1*: same as 13.1
-- *babyrev_level15.0*: same
-- *babyrev_level15.1*: same
-- *babyrev_level16.0*: from now on, we have to reverse the VM code even if we are clever.
+- *babyrev_level15.0*: same as 14.0
+- *babyrev_level15.1*: same as 14.1
+- *babyrev_level16.0*: from now on, we have to reverse the VM code even if we are clever. In this challenge, there is no `memcmp()`, but there are a few functions: `interpret_sys()`, `interpret_imm()`, `interpret_cmp()`, `interpret_add()`, `interpret_ldm()`, ...
+    - Before each time a function with the prefix `interpret_` was called, the value passed to `rdi` is always `QWORD PTR [rbp-0x18]` (the `rbp` is the base pointer of the stack frame for `execute_program()`)
+    - `interpret_sys()`: in this function, there are s
