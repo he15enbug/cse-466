@@ -256,18 +256,208 @@
         - Readable version
             ```
             interpret_stm(rdi, rsi, rdx) {
+                reg1 = describe_register(rdx)
+                reg2 = describe_register(rsi)
+                printf("[s] STM *%s = %s\n", reg2, reg1)
+                reg1_val = read_register(rdi, dl)
+                reg2_val = read_register(rdi, sil)
+                write_memory(rdi, reg2_val, reg1_val)
+            }
+            ```
+        - Detailed process
+            ```
+            (rdi: base address for registers)
+            (rsi: 0x8)
+            (rdx: 0x40)
+            allocate 0x18 bytes on stack
+            q_18 = rdi
+            ecx = esi (0x8)
+            b_1c = sil (0x8)
+            b_20 = dl  (0x40)
+            edi  = b_20
+            call <describe_register> (get "a")
+            rbx  = rax // address of register "a"
+            edi  = b_1c
+            call <describe_register> (get "b")
+            rdx  = rbx // address of register "a"
+            rsi  = rax // address of register "b"
+            rdi  = address of format string "[s] STM *%s = %s\n"
+            eax  = 0
+            call <printf@plt>
+            
+            rdi = q_18
+            esi = b_20
+            call <read_register>
+            ebx = al
 
+            rdi = q_18
+            esi = b_1c
+            call <read_register>
+            ecx = al
+
+            edx = ebx // value in "a"
+            rsi = ecx // value in "b"
+            rdi = q_18
+            call <write_memory>
+
+            exit
+            ```
+    - `write_memory`:
+        - Readable version
+            ```
+            write_memory(rdi, rsi, rdx) {
+                BYTE PTR [rdi + rsi] = dl
             }
             ```
     - `interpret_add`:
         - Readable version
+            ```
+            // reg(rsi) = reg(rsi) + reg(rdx)
+            interpret_add(rdi, rsi, rdx) {
+                reg1 = describe_register(sil)
+                reg2 = describe_register(dl)
+                printf("[s] ADD %s %s\n", reg1, reg2)
+                reg1_val = read_register(rdi, sil)
+                reg2_val = read_register(rdi, dl)
+                write_register(rdi, sil, reg1_val + reg2_val)
+            }
+            ```
         - Detailed process
             ```
+            (rdi: base address for registers)
+            (rsi: 0x8)
+            (rdx: 0x2)
             allocate 0x18 bytes on stack
-            q_18 = rdi (0x7ffc74df2260)
-            ecx = esi  (0x8)
-            eax = edx  (0x91)
-            edx = esi  (0x8)
-            b_1c = dl  (0x8)
-            b_20 = al  (0x91)
+            q_18 = rdi
+
+            b_1c = esi  (0x8)
+            b_20 = dl   (0x2)
+            edi  = b_20 (0x2)
+            call <describe_register>
+            rbx = rax // register "c"
+            edi  = b_1c  (0x8)
+            call <describe_register>
+            rdx  = rbx // register "c"
+            rsi  = rax // register "b"
+            rdi  = &"[s] ADD %s %s\n"
+            eax  = 0
+            call <printf@plt> // [s] ADD b c
+
+            rsi = b_1c
+            rdi = q_18
+            call <read_register>
+            ebx = eax // value of "b"
+            rsi = b_20
+            rdi = q_18
+            call <read_register>
+            eax += ebx // eax = val_b + val_c
+
+            edx = al
+            esi = b_1c
+            rdi = q_18
+            call <write_register>
+            
+            exit
             ```
+    - `interpret_ldm`:
+        - Readable version
+            ```
+            interpret_ldm(rdi, rsi, rdx) {
+                // b_1c rsi
+                // b_20 rdx
+                reg1 = describe_register(dl)
+                reg2 = describe_register(sil)
+                printf([s] LDM %s = *%s\n, reg2, reg1)
+                
+                reg1_val = read_register(rdi, dl)
+                mem_val = read_memory(rdi, reg1_val)
+
+                write_register(rdi, rsi, mem_val)
+
+                exit
+            }
+            ```
+    - `read_memory`:
+        - Readable version
+            ```
+            read_memory(rdi, rsi) {
+                eax = BYTE PTR [rdi + rsi]
+            }
+            ```
+    - `interpret_cmp`:
+        - Readable version
+            ```
+            (rsi 0x40)
+            (rdx 0x8)
+            interpret_cmp(rdi, rsi, rdx) {
+                reg1 = describe_register(dl)
+                reg2 = describe_register(sil)
+                printf("[s] CMP %s %s\n", reg2, reg1)
+
+                reg1_val = read_register(rdi, dl)
+                reg2_val = read_register(rdi, sil)
+
+                if(reg2_val < reg1_val) {
+                    reg_6 = reg_6 or 0x8
+                }
+                if(reg2_val > reg1_val) {
+                    reg_6 = reg_6 or 0x10
+                }
+                if(reg2_val == reg1_val) {
+                    reg_6 = reg_6 or 0x4
+                }
+                if(reg2_val != reg1_val) {
+                    reg_6 = reg_6 or 0x1
+                }
+                if(reg2_val == 0 && reg1_val == 0) {
+                    reg_6 = reg_6 or 0x2
+                }
+            }
+            ```
+        - Detailed process
+            ```
+            allocate 0x28 bytes on stack
+            q_28 = rdi
+            b_2c = sil
+            b_30 = dl
+            edi  = b_30
+            call <describe_register>
+            rbx = rax
+            edi = b_2c
+            call <describe_register>
+            rdx = rbx
+            rsi = rax
+            rdi = &"[s] CMP %s %s\n"
+            call <printf@plt> // [s] CMP a b
+
+            esi = b_2c
+            rdi = q_28
+            call <read_register>
+            b_12 = al
+
+            esi = b_30
+            rdi = q_28
+            call <read_register>
+            b_11 = al
+
+            BYTE PTR [q_28 + 0x106] = 0 (the last register, reg_6)
+            cmp b_12, b_11
+            jae <+165>
+            reg_6 = reg_6 or 0x8
+            <+165> cmp b_12, b_11
+            jbe <+200>
+            reg_6 = reg_6 or 0x10
+            <+200> cmp b_12, b_11
+            jne <+235>
+            reg_6 = reg_6 or 0x4
+            <+235> cmp b_12, b_11
+            je <+270>
+            reg_6 = reg_6 or 0x1
+            <+270> cmp b_12, 0x0
+            jne <+308>
+            cmp b_11, 0x0
+            jne <+308>
+            reg_6 = reg_6 or 0x2
+            <+308> exit
+            ```
+        
