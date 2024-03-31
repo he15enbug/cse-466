@@ -118,9 +118,18 @@
                                 esi = b_40
                                 rdi = q_38
                                 call <read_register> // <interpret_sys+612>
+                                ebx = al
+                                edi = b_40
+                                call <describe_register>
+                                edx = ebx
+                                rsi = rax
+                                rdi = address of format string "[s] ... return value (in register %s): %#hhx\n"
+                                eax = 0
+                                call <printf@plt>
+                                exit
                             }
                             else {
-
+                                
                             }
                         }
                     }
@@ -134,49 +143,131 @@
     - `describe_register`:
         ```
         switch(dil) {
-            case 0x40: eax = address of "a"; break;
-            case 0x08: eax = address of "b"; break;
-            case 0x02: eax = address of "c"; break;
-            case 0x01: eax = address of "d"; break;
-            case 0x10: eax = address of "s"; break;
-            case 0x20: eax = address of "i"; break;
-            case 0x04: eax = address of "f"; break;
-            case 0x00: eax = address of "NONE"; break;
-            default:   eax = address of "?";
+            case 0x40: rax = address of "a"; break;
+            case 0x08: rax = address of "b"; break;
+            case 0x02: rax = address of "c"; break;
+            case 0x01: rax = address of "d"; break;
+            case 0x10: rax = address of "s"; break;
+            case 0x20: rax = address of "i"; break;
+            case 0x04: rax = address of "f"; break;
+            case 0x00: rax = address of "NONE"; break;
+            default:   rax = address of "?";
         }
         ```
     - `write_register`:
-        ```
-        q_08 = rdi
-        ecx = esi
-        eax = edx
-        edx = esi
-        b_0c = sil
-        b_10 = al
+        - Readable version
+            ```
+            OFFSET = TABLE[sil] ({0, 1, 2, 3, 4, 5, 6})
+            BYTE PTR [rdi + 0x100 + OFFSET] = dl
+            ```
+        - Detailed process (for analysis)
+            ```
+            q_08 = rdi
+            ecx = esi
+            eax = edx
+            edx = esi
+            b_0c = sil
+            b_10 = al
 
-        rax = q_08
-        edx = b_10
-        swithc(sil) {
-            case 0x40:
-                BYTE PTR [q_08+0x100]= b_10; break;
-            case 0x08:
-                BYTE PTR [q_08+0x101]= b_10; break;
-            case 0x02:
-                BYTE PTR [q_08+0x102]= b_10; break;
-            case 0x01:
-                BYTE PTR [q_08+0x103]= b_10; break;
-            case 0x10:
-                BYTE PTR [q_08+0x104]= b_10; break;
-            case 0x20:
-                BYTE PTR [q_08+0x105]= b_10; break;
-            case 0x04:
-                BYTE PTR [q_08+0x106]= b_10; break;
-            default:
-                rdi = address of "unknown register"
-                crash
-        }
-        ```
+            rax = q_08
+            edx = b_10
+            swithc(sil) {
+                case 0x40:
+                    BYTE PTR [q_08+0x100]= b_10; break;
+                case 0x08:
+                    BYTE PTR [q_08+0x101]= b_10; break;
+                case 0x02:
+                    BYTE PTR [q_08+0x102]= b_10; break;
+                case 0x01:
+                    BYTE PTR [q_08+0x103]= b_10; break;
+                case 0x10:
+                    BYTE PTR [q_08+0x104]= b_10; break;
+                case 0x20:
+                    BYTE PTR [q_08+0x105]= b_10; break;
+                case 0x04:
+                    BYTE PTR [q_08+0x106]= b_10; break;
+                default:
+                    rdi = address of "unknown register"
+                    crash
+            }
+            ```
     - `read_register`:
-        ```
+        - Readable version
+            ```
+            read_register(rdi, rsi) {
+                OFFSET = TABLE[sil] ({0, 1, 2, 3, 4, 5, 6})
+                eax = BYTE PTR [rdi + 0x100 + OFFSET]
+            }
+            ```
+        - Detailed process
+            ```
+            q_08 = rdi
+            eax = esi
+            switch(al) {
+                case 0x40: eax = BYTE PTR [q_08 + 0x100]; break;
+                case 0x08: eax = BYTE PTR [q_08 + 0x101]; break;
+                case 0x02: eax = BYTE PTR [q_08 + 0x102]; break;
+                case 0x01: eax = BYTE PTR [q_08 + 0x103]; break;
+                case 0x10: eax = BYTE PTR [q_08 + 0x104]; break;
+                case 0x20: eax = BYTE PTR [q_08 + 0x105]; break;
+                case 0x04: eax = BYTE PTR [q_08 + 0x106]; break;
+                default:
+                    rdi = address of "unknown register"
+                    crash
+            }
+            ```
+    - `interpret_imm`:
+        - Use `sil` to select a 1-byte register, set its value to `dl`
+        - Readable version
+            ```
+            interpret_imm(rdi, rsi, rdx) {
+                describe_register(sil) // store register name address to eax
+                printf("[s] IMM %s = %#hhx\n", eax, edx)
+                write_register(rdi, sil, dl)
+            }
+            ```
+        - Detailed process
+            ```
+            allocate 0x18 bytes on stack
+            q_18 = rdi (0x7ffc74df2260)
+            ecx = esi  (0x8)
+            eax = edx  (0x91)
+            edx = esi  (0x8)
+            b_1c = dl
+            b_20 = al
+            ebx  = al
+            eax  = dl
+            edi  = dl
+            call <describe_register>
+            edx = ebx
+            rsi = rax (address of "b")
+            rdi = address of format string "[s] IMM %s = %#hhx\n"
+            eax = 0
+            call <printf@plt> ("IMM b = 0x91")
+            edx = b_20 (0x91)
+            ecx = b_1c (0x8)
+            rax = q_18
+            esi = b_1c (0x8)
+            rdi = q_18
+            call <write_register> (write b_20 to register "b")
+            exit
+            ```
+    - `interpret_stm`:
+        - Readable version
+            ```
+            interpret_stm(rdi, rsi, rdx) {
 
-        ```
+            }
+            ```
+    - `interpret_add`:
+        - Readable version
+        - Detailed process
+            ```
+            allocate 0x18 bytes on stack
+            q_18 = rdi (0x7ffc74df2260)
+            ecx = esi  (0x8)
+            eax = edx  (0x91)
+            edx = esi  (0x8)
+            b_1c = dl  (0x8)
+            b_20 = al  (0x91)
+            ```
