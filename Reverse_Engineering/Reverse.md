@@ -493,5 +493,15 @@
     - Based on previous analysis, the key is 8 bytes, and starts from offset `0x96`
 - *babyrev_level17.0*: debug it, get to the place right before the `cmp`s, and see the key
 - *babyrev_level17.1*: debug it, get to the place right before the `cmp`s, and see the key
-- *babyrev_level18.0*
+- *babyrev_level18.0*: a little bit more complex
+    ```
+    input = key+offset
+    symbolic value: [0x64]+0x86 [0x65]+0xf9 [0x66]+0x5e [0x67]+0xb [0x68]+0xbc [0x69]+0x84
+    concrete value:  c2          55          1e          b8         a4          d1
+    ```
 - *babyrev_level18.1*
+    ```
+    input = key-offset
+    0x7f-0x4d  0x79-0xd8 0xc0-0x13 0x49-0x77 0x2e-0xf4 0x5a-0x46 0x24-0x4b 0xc2-0x86 0xb0-0x33
+    0x32       0xa1      0xad      0xd2      0x3a      0x14      0xd9      0x3c      0x7d
+    ```
