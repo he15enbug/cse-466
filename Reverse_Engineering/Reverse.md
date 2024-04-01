@@ -491,5 +491,7 @@
         ```
 - *babyrev_level16.1*: similar to 16.0, but gets some useful information removed. 
     - Based on previous analysis, the key is 8 bytes, and starts from offset `0x96`
-- *babyrev_level17.0*:
-- *babyrev_level17.1*:
+- *babyrev_level17.0*: debug it, get to the place right before the `cmp`s, and see the key
+- *babyrev_level17.1*: debug it, get to the place right before the `cmp`s, and see the key
+- *babyrev_level18.0*
+- *babyrev_level18.1*

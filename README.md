@@ -8,7 +8,7 @@
 ### Shellcode Injection **[Finished]**
 ### Debugging Refresher
 - Finished in course [CSE 365](https://github.com/he15enbug/cse-365)
-### Reverse Engineering **[32/44]**
+### Reverse Engineering **[34/44]**
 ### Memory Errors
 ### Sandboxing
 ### Program Exploitation
