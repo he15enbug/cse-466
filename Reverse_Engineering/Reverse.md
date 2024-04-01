@@ -398,19 +398,13 @@
                 reg2_val = read_register(rdi, sil)
 
                 if(reg2_val < reg1_val) {
-                    reg_6 = reg_6 or 0x8
+                    reg_6 = 0x9
                 }
                 if(reg2_val > reg1_val) {
-                    reg_6 = reg_6 or 0x10
+                    reg_6 = 0x11
                 }
                 if(reg2_val == reg1_val) {
-                    reg_6 = reg_6 or 0x4
-                }
-                if(reg2_val != reg1_val) {
-                    reg_6 = reg_6 or 0x1
-                }
-                if(reg2_val == 0 && reg1_val == 0) {
-                    reg_6 = reg_6 or 0x2
+                    reg_6 = (reg2_val != 0) ? 0x4 : 0x6
                 }
             }
             ```
@@ -460,4 +454,42 @@
             reg_6 = reg_6 or 0x2
             <+308> exit
             ```
-        
+        - `execute_program`
+            - Start from the comparison
+                ```
+                (q_18 stores the base address)
+                d_4 = 1
+                (1)
+                reg_1 = [q_18 + 0x91]
+                reg_0 = [q_18 + 0x71] // first byte of our input
+                if(reg_1 != reg_0) {
+                    d_4 = 0
+                }
+                (2)
+                reg_1 = [q_18 + 0x92]
+                reg_0 = [q_18 + 0x72]
+                if(reg_1 != reg_0) {
+                    d_4 = 0
+                }
+                (3)
+                reg_1 = [q_18 + 0x93]
+                reg_0 = [q_18 + 0x73]
+                if(reg_1 != reg_0) {
+                    d_4 = 0
+                }
+                (4)
+                reg_1 = [q_18 + 0x94]
+                reg_0 = [q_18 + 0x74]
+                if(reg_1 != reg_0) {
+                    d_4 = 0
+                }
+                ```
+    - Now, we can see that the 4 bytes key stored in `[q_18 + 0x91]`, we can try to input "\x9d\xa4\x8c\xd2". Got the flag.
+        ```
+        (gdb) x/8bx 0x7ffcccc08c51
+        0x7ffcccc08c51: 0x9d    0xa4    0x8c    0xd2    0x00    0x00    0x00    0x00
+        ```
+- *babyrev_level16.1*: similar to 16.0, but gets some useful information removed. 
+    - Based on previous analysis, the key is 8 bytes, and starts from offset `0x96`
+- *babyrev_level17.0*:
+- *babyrev_level17.1*:
