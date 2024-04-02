@@ -505,3 +505,16 @@
     0x7f-0x4d  0x79-0xd8 0xc0-0x13 0x49-0x77 0x2e-0xf4 0x5a-0x46 0x24-0x4b 0xc2-0x86 0xb0-0x33
     0x32       0xa1      0xad      0xd2      0x3a      0x14      0xd9      0x3c      0x7d
     ```
+- *babyrev_level19.0*: this is a full end-to-end obfuscated challenge, like we might see in real-world obfuscated code! The key functions are `interpreter_loop` and `interpret_instruction`
+    - `vm_code` starts from `0x56086b87b020`
+    - `vm_mem` starts from `0x56086b87b2e0`
+    - `main`
+        1. `memcopy` the VM code at `vm_code` on to the stack (from `rbp-0x410`)
+        2. move content in `vm_mem` on to the stack
+            ```
+            vm_mem offset: +0     +8     +16    +24   ... +240  +248
+            rbp    offset: -0x110 -0x108 -0x100 -0xf8 ... -0x20 -0x18
+            ```
+        3. call `interpreter_loop` with parameter `rdi = rbp-0x410` (the start of VM code on stack). In `interpreter_loop`, the VM code bytes will be interpreted by `interpret_instruction` function
+    - `interpreter_loop`
+    - `interpret_instruction`
