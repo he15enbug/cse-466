@@ -517,4 +517,150 @@
             ```
         3. call `interpreter_loop` with parameter `rdi = rbp-0x410` (the start of VM code on stack). In `interpreter_loop`, the VM code bytes will be interpreted by `interpret_instruction` function
     - `interpreter_loop`
+        ```
+        allocate 0x20 bytes on stack
+        q_18 = rdi (address of the VM code on stack)
+        
+        loop_start:
+        eax  = BYTE PTR [q_18+0x405] ([rbp_main-0xb])
+        BYTE PTR [q_18+0x405] += 1
+
+        // we can figure out that each instruction is 3 bytes
+        // suppose the instruction is [A|B|C] (low to high address)
+        rax  = 3 * rax + q_18
+        edx  = WORD PTR [rax]     // [A|B]
+        eax  = BYTE PTR [rax+0x2] // [C]
+        // the 3 bytes from `rbp-0x3` is used to store the instruction
+        w_03  = dx  // [A|B]
+        b_01  = al  // [C]
+
+        edx  = b_03 //  [A]
+        ecx  = b_02 //  [B]
+        rcx <<= 8   //  [00|B]
+        rcx |= rdx  //  [A|B]
+        edx  = b_01 //  [C]
+        rdx <<= 16  //  [00|00|C]
+        rdx |= rcx  //  [A|B|C]
+        rsi  = rdx  //  [A|B|C]
+        rdi  = q_18
+        call <interpret_instruction>
+        jmp loop_start
+        ```
     - `interpret_instruction`
+        ```
+        allocate 0x10 bytes on stack
+        q_08 = rdi // starting address of VM code on stack
+        q_10 = rsi // 3-byte instruction to be interpreted
+        edi  = BYTE PTR [q_08 + 0x406]
+        esi  = BYTE PTR [q_08 + 0x405]
+        r9d  = BYTE PTR [q_08 + 0x404]
+        r8d  = BYTE PTR [q_08 + 0x403]
+        ecx  = BYTE PTR [q_08 + 0x402]
+        edx  = BYTE PTR [q_08 + 0x401]
+        eax  = BYTE PTR [q_08 + 0x400]
+        push rdi
+        push rsi
+        esi = eax
+        rdi = &"[V] a:%#hhx b:%#hhx c:%#hhx d:%#hhx s:%#hhx i:%#hhx f:%#hhx\n"
+        print out the values in registers: a, b, c, d, s, i, f
+
+        rsp += 0x10
+        // get the instruction [al | cl | dl] (low -> high)
+        ecx = b_0f
+        edx = b_0e
+        eax = b_10
+        esi = eax
+        rdi = &"[I] op:%#hhx arg1:%#hhx arg2:%#hhx\n"
+        print out the instruction "op:al arg1:dl arg2:cl"
+
+        switch(al) {
+            case 0x2:  interpret_imm; break;
+            case 0x40: interpret_add; break;
+            case 0x10: interpret_stk; break;
+            case 0x8:  interpret_stm; break;
+            case 0x1:  interpret_ldm; break;
+            case 0x4:  interpret_cmp; break;
+            case 0x20: interpret_jmp; break;
+            case 0x0:  interpret_sys; break;
+            default:   NOP
+        }
+        ```
+    - Register table
+        ```
+        0x4   a  0x400
+        0x10  b  0x401
+        0x1   c  0x402
+        0x8   d  0x403
+        0x2   s  0x404
+        0x20  i  0x405
+        0x40  f  0x406
+        ```
+    - `interpret_cmp`
+        ```
+        q_28 = rdi
+        q_30 = rsi // [op_cmp|arg2|arg1]
+        reg2 = describe_register(arg2)
+        reg1 = describe_register(arg1)
+        printf("[s] CMP %s %s\n", reg1, reg2)
+ 
+        b_12 = read_register(q_28, arg1)
+        b_11 = read_register(q_28, arg2)
+        
+        compare b_11 and b_12, and set reg_f
+        ```
+    - `interpret_stk`
+        ```
+        allocate 0x18 bytes on stack
+        q_18 = rdi
+        q_20 = rsi // [op_cmp|arg2|arg1]
+        reg2 = describe_register(arg2)
+        reg1 = describe_register(arg1)
+        print out op_stk, arg1, arg2
+        // push reg[arg2] on to the stack
+        if(arg2 != 0) {
+            printf("[s] ... pushing %s\n", reg2)
+            reg_s += 1 // the s register is like a rsp in x86_64
+            reg2_val = read_register(q_18, arg2)
+            write_memory(q_18, reg_s, reg2_val)
+        }
+        // pop a value to reg[arg1]
+        else if(arg1 != 0) {
+            printf("[s] ... popping %s\n", reg1)
+            top_val = read_memory(rdi, reg_s)
+            write_register(rdi, arg1, top_val)
+            reg_s -= 1
+        }
+        ```
+    - `interpret_jmp`
+        ```
+        allocate 0x18 bytes on stack
+        q_18 = rdi
+        q_20 = rsi // [op_cmp|arg2|arg1]
+
+        if(arg1 != 0 && (reg_f & arg1) == 0) {
+            puts("[j] ... NOT TAKEN")
+        }
+        else {
+            puts("[j] ... TAKEN")
+            reg2_val = read_register(q_18, arg2)
+            // overwrite register i (just like the rip in x86_64)
+            reg_i = reg2_val
+        }
+
+        ```
+    - We jump to the first `interpret_cmp`, finish it, and then we will see what happend to our input before the comparison
+        - After the first `cmp` (modify the values being compared to the same)
+            1. `imm d = 0xe`
+            2. `jmp E d` (Not taken)
+            3. `imm d = 0x65`
+            4. `jmp LG d` (TAKEN)
+            5. `imm b = 0x1`
+            6. `add b s` (`b = b + s`)
+            7. `d = 0x49`
+            8. 
+        - values being compared (hex)
+            ```
+            a   b
+            35  7e
+
+            ```
