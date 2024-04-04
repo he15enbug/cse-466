@@ -751,7 +751,7 @@
 
         CMP a b
         ```
-        - `a != b`
+        - `a != b`: we can see that one thing different from the previous challenge is that when the current byte check fails, it will not check the rest of the bytes, but get "INCORRECT" immediately
             ```
             CMP a b (reg_f = 0x18)
 
@@ -829,4 +829,38 @@
             6: [0x30] [0x79], 0xce
             DONE
             ```
-- *babyrev_level19.1*
+- *babyrev_level19.1*: the VM instruction information will not be given, we need to inspect the code to figure out some key functions' address
+    - input: `base + 0x330`
+    - key: `base + 0x376`
+    - this time, the challenge program takes 8 bytes as input, and compares the first 6 bytes of our input with the 6-byte key
+- *babyrev_level20.0*:
+    - this time our input will be processed
+        ```
+        [0x30] += 0xed
+        [0x31] += 0x7b
+        [0x32] += 0x56
+        [0x33] += 0x2a
+        [0x34] += 0x5e
+        [0x35] += 0xeb
+        [0x36] += 0x72
+        [0x37] += 0x79
+        [0x38] += 0x6c
+        [0x39] += 0x1a
+        [0x3a] += 0x76
+        [0x3b] += 0xc9
+        [0x3c] += 0x94
+        [0x3d] += 0x6
+        [0x3e] += 0xd3
+        [0x3f] += 0x29
+        [0x40] += 0xd3
+        [0x41] += 0xb5
+        [0x42] += 0x7b
+        [0x43] += 0x31
+        [0x44] += 0x4f
+        ```
+    - the challenge will compare the processed 21 bytes with the key
+- *babyrev_level20.1*: same. An easy way is to observe the registers to figure out what happend to our input
+- *babyrev_level21.0*
+- *babyrev_level21.1*
+- *babyrev_level22.0*
+- *babyrev_level22.1*
