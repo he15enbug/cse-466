@@ -506,8 +506,6 @@
     0x32       0xa1      0xad      0xd2      0x3a      0x14      0xd9      0x3c      0x7d
     ```
 - *babyrev_level19.0*: this is a full end-to-end obfuscated challenge, like we might see in real-world obfuscated code! The key functions are `interpreter_loop` and `interpret_instruction`
-    - `vm_code` starts from `0x56086b87b020`
-    - `vm_mem` starts from `0x56086b87b2e0`
     - `main`
         1. `memcopy` the VM code at `vm_code` on to the stack (from `rbp-0x410`)
         2. move content in `vm_mem` on to the stack
@@ -648,19 +646,187 @@
         }
 
         ```
-    - We jump to the first `interpret_cmp`, finish it, and then we will see what happend to our input before the comparison
-        - After the first `cmp` (modify the values being compared to the same)
-            1. `imm d = 0xe`
-            2. `jmp E d` (Not taken)
-            3. `imm d = 0x65`
-            4. `jmp LG d` (TAKEN)
-            5. `imm b = 0x1`
-            6. `add b s` (`b = b + s`)
-            7. `d = 0x49`
-            8. 
-        - values being compared (hex)
-            ```
-            a   b
-            35  7e
+    - Instructions in each loop
+        ```
+        i = 0xb8
 
+        // for convenience
+        write_memory(rdi, 0x77, 0xeb)
+        write_memory(rdi, 0x78, 0xd9)
+        write_memory(rdi, 0x79, 0xce)
+        write_memory(rdi, 0x7a, 0xdd)
+        write_memory(rdi, 0x7b, 0x46)
+        write_memory(rdi, 0x7c, 0x10)
+        write_memory(rdi, 0x7d, 0x9e)
+        write_memory(rdi, 0x7e, 0x44)
+
+        i = 0x98
+        push a (0x00)
+        push b (0x00)
+        push c (0x7e)
+
+        b = 0x1
+        b = b + s (0x1+0x3)
+
+        push 0x4b
+        push 0x45
+        push 0x59
+        push 0x3a
+        push 0x20
+
+        c = 0x5
+        a = 0x1
+        SYS 0x20 d { // 0x20 is the number for write
+            q_18 = vm_base+0x300+b
+
+            edx = 0x100 - b
+            eax = 0x100 - b
+            rdx = 0x100 - b
+            
+            eax = min(c, 0x100-b)
+            edx  = al
+            rsi = vm_base+0x300+b
+            edi = a
+            call <write@plt>
+            write return value of <write@plt> to register d (specified by arg1 0x8)
+        }
+
+        pop c (0x20)
+        pop b (0x3a)
+        pop a (0x59)
+        push a (0x59)
+        push b (0x3a)
+        push c (0x20)
+        
+        b = 0x30
+        c = 0x8
+        a = 0x0
+
+        SYS 0x4 d { // 0x4 is the number for read
+            q_20 = vm_base+0x300+b
+
+            // this is to prevent the input overwrite the data
+            // after vm_base+0x400 (registers)
+            edx = min(0x100 - b, c)
+            rsi = q_20
+            rdi = a
+            call <read@plt>
+            write the return value of <read@plt> to register d
+        }
+        
+        pop c (0x20)
+        pop b (0x3a)
+        pop a (0x59)
+        i = 0x5e
+        push a (0x59)
+        push b (0x3a)
+        push c (0x20)
+
+        pop c (0x20)
+        pop b (0x3a)
+        pop a (0x59)
+        i = 0x1
+        push a (0x59)
+        push b (0x3a)
+        push c (0x20)      
+
+        a = 0x30
+        b = 0x79
+        c = 0x06
+        d = 0x2
+        d = d + i (0x2 + 0x6)
+        push d (0x8)
+        i = 0x82
+        a = a + c (0x30 + 0x6)
+        b = b + c (0x79 + 0x6)
+        d = 0xff
+        a = a + d (0x36 + 0xff)
+        b = b + d (0x7f + 0xff)
+
+        push a (0x35)
+        push b (0x7e)
+
+        a = [a] ([0x35] = 0x36)
+        b = [b] ([0x7e] = 0x44)
+
+        CMP a b
+        ```
+        - `a != b`
             ```
+            CMP a b (reg_f = 0x18)
+
+            pop b (0x7e)
+            pop a (0x35)
+
+            d = 0x96
+            JMP N d (taken, i = 0x97)
+
+            push c (0x6)
+            pop  d (0x6)
+            pop  i (0x09)
+
+            c = 0x0
+            CMP d c (reg_f = 0x12)
+            
+            d = 0xe
+            JMP E d (not taken)
+            d = 0x65
+            JMP LG d (taken, i = 0x66)
+
+            b = 0x1
+            b = b + s (0x1 + 0x5)
+
+            push 0x49
+            push 0x4e
+            push 0x43
+            push 0x4f
+            push 0x52
+            push 0x52
+            push 0x45
+            push 0x43
+            push 0x54
+            push 0x21
+            push 0xa
+
+            c = 0xb
+            a = 0x1
+            
+            SYS 0x20 d (write "INCORRECT!")
+            ```
+        - `a == b` (in `gdb`, set the byte to be compared to the correct value)
+            ```
+            CMP a b (reg_f = 0x1)
+            pop b (0x7e)
+            pop a (0x35)
+            d = 0x96
+            jmp N d (not taken)
+            d = 0xff
+            c = c + d (0x06 + 0xff = 0x05)
+            d = 0
+            cmp c d (reg_f = 0x12)
+            d = 0x84
+            jmp N d (taken, i = 0x85)
+            d = 0xff
+            a = a + d (0x35 + 0xff = 0x34)
+            b = b + d (0x7e + 0xff = 0x7d)
+
+            push a
+            push b
+            a = [a] ([0x34] = 0x35, modify it to 0x9e)
+            b = [b] ([0x7d] = 0x9e)
+
+            we don't need to analyze the rest of instructions
+            just keep running, and figure out the memory address being compared each time
+            then we can figure out the key
+            ```
+        - addresses being compared: finally we can see that only the first 6 bytes of out input will be used
+            ```
+            1: [0x35] [0x7e], 0x44
+            2: [0x34] [0x7d], 0x9e
+            3: [0x33] [0x7c], 0x10
+            4: [0x32] [0x7b], 0x46
+            5: [0x31] [0x7a], 0xdd
+            6: [0x30] [0x79], 0xce
+            DONE
+            ```
+- *babyrev_level19.1*
