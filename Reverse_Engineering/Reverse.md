@@ -860,7 +860,21 @@
         ```
     - the challenge will compare the processed 21 bytes with the key
 - *babyrev_level20.1*: same. An easy way is to observe the registers to figure out what happend to our input
-- *babyrev_level21.0*
+- *babyrev_level21.0*: we need to write the shellcode that can be interpreted by this custom emulator. We can call `interpret_sys` in our shellcode, and get it to execute the `open` branch
+    - `open` in `interpret_sys`: opens a file and store the FD in a register specified by `rsi`
+        ```
+        q_38 = rdi
+        q_40 = rsi
+        ...
+        // to reach this branch, eax should be 0x10
+        puts("[s] ... open")
+        edx = reg_c
+        eax = reg_b
+        esi = reg_b
+        rdi = q_38 + 0x300 + reg_a
+        call <open@plt>
+        write_register(q_38, q_40, al)
+        ```
 - *babyrev_level21.1*
 - *babyrev_level22.0*
 - *babyrev_level22.1*
