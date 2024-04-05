@@ -1,3 +1,4 @@
+set pagination off
 display/16i $rip
 display/x $rdi
 display/x $rsi

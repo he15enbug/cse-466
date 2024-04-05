@@ -861,20 +861,127 @@
     - the challenge will compare the processed 21 bytes with the key
 - *babyrev_level20.1*: same. An easy way is to observe the registers to figure out what happend to our input
 - *babyrev_level21.0*: we need to write the shellcode that can be interpreted by this custom emulator. We can call `interpret_sys` in our shellcode, and get it to execute the `open` branch
+    - Mind that this time the layout of the instruction is a little bit different:
+        - Instructions are still 3 bytes
+        - But from low to high memory, they are `[arg2|0x10|op]`
     - `open` in `interpret_sys`: opens a file and store the FD in a register specified by `rsi`
         ```
         q_38 = rdi
         q_40 = rsi
         ...
-        // to reach this branch, eax should be 0x10
+        // to reach this branch, arg1 should be 0x10: [arg2|0x10|op_sys] (low -> high)
         puts("[s] ... open")
         edx = reg_c
         eax = reg_b
         esi = reg_b
         rdi = q_38 + 0x300 + reg_a
         call <open@plt>
-        write_register(q_38, q_40, al)
+        write_register(q_38, arg1, al)
         ```
-- *babyrev_level21.1*
+        - We can use `sys 0x10 a` to open a file and store the FD in register `a`
+        - One thing we need to do is to make `rdi` the address of the flag path `"/flag"`
+            ```
+            // "/flag\0" -> 0x2f, 0x66, 0x6c, 0x61, 0x67, 0x00
+            imm a 0x00
+            imm b 0x2f
+            stm a b
+            imm a 0x01
+            imm b 0x66
+            stm a b
+            ...
+            ```
+        - Then, we can set `a` to `0x00` (the `open` system call get file path from `base + 0x300 + a`), and call `open`. The result will be stored in `a` as we specified
+            ```
+            imm a 0x00
+            sys 0x10 a
+            ```
+    - `read` in `interpret_sys`: `read(a, base + 0x300 + b, min(0x100 - b, c))`
+        ```
+        q_38 = rdi
+        q_40 = rsi
+        ...
+        // to reach this branch, arg1 should be 0x04: [arg2|0x04|op_sys] (low -> high)
+        rdx = min(0x100 - reg_b, reg_c)
+        rsi = q_38 + 0x300 + reg_b
+        rdi = reg_a
+        call <read@plt>
+        ```
+        - We need to set `a` to the FD of the flag file (it is already set by the previous system call), `b` to the offset of the address where we want to store the flag (`0x10`), `c` to `0xef`
+            ```
+            imm b 0x10
+            imm c 0xef
+            sys 0x04 a
+            ```
+    - `write` in `interpret_sys`: `write(a, base + 0x300 + b, min(0x100 - b, c))`
+        ```
+        q_38 = rdi
+        q_40 = rsi
+        ...
+        // to reach this branch, arg1 should be 0x01: [arg2|0x01|op_sys] (low -> high)
+        rdx = min(0x100 - reg_b, reg_c)
+        rsi = q_38 + 0x300 + reg_b
+        rdi = reg_a
+        call <write@plt>
+        ```
+        - We need to set `a` to the FD of standard output (`0x01`), `b` to the offset of the begnning of the flag (`0x10`), `c` to `0xef`
+            ```
+            imm a 0x01
+            imm b 0x10
+            imm c 0xef
+            sys 0x01 a
+            ```
+- *babyrev_level21.1*: Bad news is that the byte for registers, functions, and system calls are changed, and the layout of the instruction becomes `[arg1|op|arg2] (L -> H)`. Good news is that we do not need to modify the custom code, we just need to modify the convert table and `compile_instr`
+    - Register table
+        ```
+        reg_table_21_1 = {
+            'a': b'\x01',
+            'b': b'\x04',
+            'c': b'\x40',
+            'd': b'\x02',
+            's': b'\x08',
+            'i': b'\x01',
+            'f': b'\x10'
+        }
+        ```
+    - Function table
+        ```
+        func_table_21_1 = {
+            'imm': b'\x04',
+            'add': b'\x00',
+            'stk': b'\x01',
+            'stm': b'\x40',
+            'ldm': b'\x20',
+            'cmp': b'\x02', 
+            'jmp': b'\x08',
+            'sys': b'\x10'
+        }
+        ```
+    - System call table
+        ```
+        open:  0x20
+        read:  0x08
+        write: 0x01
+        ```
+    - There are 2 `read` sysyem calls
+        - `0x10`
+            ```
+            q_28 = rdi
+            q_30 = rsi
+            ...
+            rcx = min((0x100 - reg_b) * 3, reg_c)
+            rsi = q_28 + reg_b * 3
+            rdi = reg_a
+            call <read@plt>
+            ```
+        - `0x08`, we will use this one for this challenge
+            ```
+            q_28 = rdi
+            q_30 = rsi
+            ...
+            rdx = min(0x100 - reg_b, reg_c)
+            rsi = q_28 + 0x300 + reg_b
+            rdi = reg_a
+            call <read@plt>
+            ```
 - *babyrev_level22.0*
 - *babyrev_level22.1*
