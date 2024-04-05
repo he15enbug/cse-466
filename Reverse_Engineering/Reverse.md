@@ -983,5 +983,52 @@
             rdi = reg_a
             call <read@plt>
             ```
-- *babyrev_level22.0*
+- *babyrev_level22.0*: this challenge randomized the VM based on the value of the flag. This means that there is no way for us to know the opcode and argument encodings. Find a side channel!
+    - First, analyze some functions
+        - `shuffle_values`
+            ```
+            allocate 0x10 bytes on stack
+            d_0c = 0
+            while(d_0c <= 0xfffe) {
+                call <rand@plt>
+                cdq // sign-extend the value in 'eax' into 'edx:eax'
+                shr edx, 0x1d // edx will be either 0x7 or 0x0
+                eax += edx
+                eax &= 0x7
+                eax -= edx
+                // the above steps turns eax into a signed value in [-8, 7]
+                d_08 = eax
+
+                call <rand@plt>
+                cdq // sign-extend the value in 'eax' into 'edx:eax'
+                shr edx, 0x1d
+                eax += edx
+                eax &= 0x7
+                eax -= edx
+                d_04 = eax
+
+                swap BYTE in VALUES[d_08] and VALUES[d_04] {
+                    // details
+                    eax = d_08
+                    cdqe // sign-extend the value in 'eax' into 'rax'
+                    b_0d = BYTE PTR [&VALUES + rax]
+                    
+                    eax = d_04
+                    cdqe
+                    edx = BYTE PTR [&VALUES + rax]
+                    
+                    eax = d_08
+                    cdqe
+                    BYTE PTR [$VALUES + rax] = dl
+                    
+                    eax = d_04
+                    cdqe
+                    BYTE PTR [$VALUES + rax] = b_0d
+                }
+
+                d_0c += 1
+            }
+
+            ```
+        - `rerandomize`
 - *babyrev_level22.1*
