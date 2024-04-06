@@ -51,6 +51,47 @@ syscall_table_21_1 = {
     'write': b'\x01'
 }
 
+reg_table_22_0 = {
+    'a': b'\x10',
+    'b': b'\x08',
+    'c': b'\x80',
+    'd': b'\x01',
+    's': b'\x40',
+    'i': b'\x04',
+    'f': b'\x20'
+}
+
+func_table_22_0 = {
+    'imm': b'\x10',
+    'stm': b'\x08',
+    'sys': b'\x02'
+}
+
+syscall_table_22_0 = {
+    'open':  b'\x02',
+    'read':  b'\x40',
+    'write': b'\x10'
+}
+
+reg_table_22_1 = {
+    'a': b'\x80',
+    'b': b'\x02',
+    'c': b'\x20',
+}
+
+func_table_22_1 = {
+    'imm': b'\x20',
+    'stm': b'\x02',
+    'sys': b'\x01'
+}
+
+syscall_table_22_1 = {
+    'open':  b'\x00',
+    'read':  b'\x80',
+    'write': b'\x02',
+    'spleep': b'\x40'
+}
+
 def str2hex_num(string = '/flag'):
     return [hex(ord(char)) for char in string]
 
@@ -77,8 +118,10 @@ def compile_instr(instr, reg_table, func_table, syscall_table, layout):
 
     if(layout == '21o'):
         return arg2 + arg1 + func_table[op]
-    else:
+    elif(layout == '1o2'):
         return arg1 + func_table[op] + arg2
+    else:
+        return arg2 + func_table[op] + arg1
 
 def compiler_loop(code, reg_table, func_table, syscall_table, layout = '21o'):
     instrs = code.split('\n')
@@ -137,3 +180,22 @@ def babyrev_lv21_1():
     with open('shellcode', 'wb') as f:
         f.write(shellcode)
         print(shellcode)
+
+def babyrev_lv22_0():
+    shellcode = compiler_loop(display_flag, reg_table_22_0, func_table_22_0, syscall_table_22_0, '1o2')
+    with open('shellcode', 'wb') as f:
+        f.write(shellcode)
+        print(shellcode)
+
+def babyrev_lv22_1(shellcode_path):
+    shellcode = compiler_loop(display_flag, reg_table_22_1, func_table_22_1, syscall_table_22_1, '2o1')
+    with open(shellcode_path, 'wb') as f:
+        f.write(shellcode)
+        print(shellcode)
+
+def probe():
+    cnt = 0
+    for o in [b'\x04', b'\x08', b'\x10', b'\x20']:
+        syscall_table_22_1['open'] = o
+        babyrev_lv22_1('./shellcode_22_1/' + str(cnt))
+        cnt += 1

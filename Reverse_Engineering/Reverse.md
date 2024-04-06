@@ -985,7 +985,29 @@
             ```
 - *babyrev_level22.0*: this challenge randomized the VM based on the value of the flag. This means that there is no way for us to know the opcode and argument encodings. Find a side channel!
     - First, analyze some functions
-        - `shuffle_values`
+        - `flag_seed`: opens the `/flag` file and generate the seed, divide the flag into 4-byte group, XOR all groups, use the result as a seed for `srand()`
+            ```
+            // open "/flag", and read its content on to the stack
+            read(open("/flag", 0), rbp-0x90, 0x80)
+
+            d_9c = 0x0
+            d_98 = 0x0
+
+            while(d_98 <= 0x1f) {
+                // each loop fetch 4 bytes of the flag
+                // (rbp - 0x90) is the address of the flag
+                eax = DWORD PTR [rbp - 0x90 + d_98 * 4]
+                d_9c = d_9c xor eax
+                
+                d_98 += 1
+            }
+
+            srand(d_9c)
+
+            // clear the flag content from memory
+            memset(rbp - 0x90, 0x0, 0x80)
+            ```
+        - `shuffle_values`: there are `0xffff` loops, in each loop, it randomly swaps 2 values in `VALUE[i]`, where `i` is in `[-7, 7]`
             ```
             allocate 0x10 bytes on stack
             d_0c = 0
@@ -996,7 +1018,10 @@
                 eax += edx
                 eax &= 0x7
                 eax -= edx
-                // the above steps turns eax into a signed value in [-8, 7]
+                // the above steps turns eax into a signed value in [-7, 7]
+                // specifically, edx = 0 when eax >= 0, edx = 0x7 when eax <=0
+                // 'eax &= 0x7' makes eax a value from 0 to 7
+                // so, eax -= edx makes eax a value in [-7, 7]
                 d_08 = eax
 
                 call <rand@plt>
@@ -1028,7 +1053,135 @@
 
                 d_0c += 1
             }
-
             ```
-        - `rerandomize`
-- *babyrev_level22.1*
+        - `rerandomize`: assign the encoding byte value to the registers and functions, randomly
+            ```
+            call <shuffle_values>
+            SPEC_REG_A = VALUES
+            SPEC_REG_B = VALUES + 1
+            SPEC_REG_C = VALUES + 2
+            SPEC_REG_D = VALUES + 3
+            SPEC_REG_S = VALUES + 4
+            SPEC_REG_I = VALUES + 5
+            SPEC_REG_F = VALUES + 6
+
+            call <shuffle_values>
+            INST_IMM = VALUES
+            INST_STK = VALUES + 1
+            INST_ADD = VALUES + 2
+            INST_STM = VALUES + 3
+            INST_LDM = VALUES + 4
+            INST_JMP = VALUES + 5
+            INST_CMP = VALUES + 6
+            INST_SYS = VALUES + 7
+            ```
+    - One side channel is the output of the program, we can use it to probe the encoding and the functions or registers.
+        - For example, we can learn from the following result that `SYS: 0x02`, `open: 0x02`, `reg_i: 0x04`, and the instruction format is `[arg1|op|arg2]`
+            ```
+            printf "\x02\x02\x04" | /challenge/babyrev_level22.0
+            [I] op:0x2 arg1:0x2 arg2:0x4
+            [s] SYS 0x2 i
+            [s] ... open
+            printf "\x01\x02\x04" | /challenge/babyrev_level22.0
+            [I] op:0x2 arg1:0x1 arg2:0x4
+            [s] SYS 0x1 i
+            [s] ... return value (in register i): 0x1
+            ```
+        - Keep trying, and we can get the register, function, and syscall tables
+            - Register table
+                ```
+                reg_table_22_0 = {
+                    'a': b'\x10',
+                    'b': b'\x08',
+                    'c': b'\x80',
+                    'd': b'\x01',
+                    's': b'\x40',
+                    'i': b'\x04',
+                    'f': b'\x20'
+                }
+                ```
+            - Function table
+                ```
+                func_table_22_0 = {
+                    'imm': b'\x10',
+                    'stm': b'\x08',
+                    'sys': b'\x02'
+                }
+                ```
+            - System call table
+                ```
+                syscall_table_22_0 = {
+                    'open':  b'\x02',
+                    'read':  b'\x40',
+                    'write': b'\x10'
+                }
+                ```
+- *babyrev_level22.1*: this time we cannot know what instruction our input is, the only information we can get is the error information, e.g., `unknown register`
+    1. Figure out the instruction format
+        - We first use "\x02\x02\x02" as input, no error is displayed, that means this is a valid instruction
+        - Modify the first or third byte (separately) to "\x09", in both cases, there is an `unknown register` value. So, we can conclude that the instruction format should be `[arg|op|arg] (L->H)`, and the function `0x2` takes 2 registers as input
+    2. Fiure out the parameter type of each function
+        - From previous challenges we know that
+            ```
+            function    arg1        arg2
+            imm         register    value
+            add         register    register
+            stk         reg or 0    reg or 0
+            stm         register    register
+            ldm         register    register
+            cmp         register    register
+            jmp         value       register
+            sys         value       register // the value must be one of the specified values
+            ```
+        - Try different inputs. Since `[0x0|0x1|0x1]` is valid, but `[0x0|0x1|0x2]` gets an `unknown register` error, we can infer that the instruction format is `[arg2|op|arg1]`, and `SYS`'s encoding is `0x1`, and syscall `exit` is `0x1`
+            ```
+            function    arg1    arg2
+            0x00        val     val
+
+            0x01 sys    0x1     val
+                        other   reg
+            0x02        reg     reg
+            0x04        reg     reg
+            0x08        reg     reg
+            0x10        reg     reg
+            0x20 imm    reg     val
+            0x40        val     reg
+
+            0x80 stk    0/reg   0/reg
+            ```
+        - We can figure out the encoding for `sys` and `imm`, but for other information we need, including: `open`, `read (memory)`, `write`, and `stm`, we cannot infer them directly
+            ```
+            func or syscall     encoding
+            open                {0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80}
+            read (mem)          {0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80}
+            write               {0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80}
+            stm                 {0x2, 0x4, 0x8, 0x10}
+            ```
+    - To figure out register `i`'s encoding, we can input `ldm ? 0xff; sys exit 0`, if `?` is `i`, the code will jump over the exit `exit`, and the program will not end. We can find that `"\xff\x20\x04\x00\x01\x01"` will make the program keep running. So, `i` is `0x4`
+    - For registers, notice that there is a `sleep` syscall, and it takes register `a` as input, we can try to set all registers except `i` to `0xff`, and then try all syscalls, there will be one syscall that blocks the program for a while. To see the effect, we put this syscall right before an exit syscall: `"\xff\x20\x01\xff\x20\x02\xff\x20\x08\xff\x20\x20\xff\x20\x40\xff\x20\x80\x01\x01\x??\x01\x01\x01"`. The result is that `sleep` is `0x40`, and we can modify one register at a time from `0xff` to `0x00`, when we set register `0x80` to `0x00`, the `sleep` will no longer block the program, so `0x80` is register `a`
+    - Now we can try to find `read` syscall. Set `a` to FD of stdin or stdout (because in previous challenge, I found a strange thing, that is, I could only input from terminal when `a` is stdout, although I was expecting that `a` should be stdin). Then we set all other registers except `i` to `0x50`, that will ensure `b` and `c` are `0x50`. If we get `read` executed, the program should pause. Input: `"\x50\x20\x01\x50\x20\x02\x50\x20\x08\x50\x20\x20\x50\x20\x40\x01\x20\x80\x01\x01\x??\x01\x01\x01"`. The result is that `read` is `0x08` or `0x80` (one of them is read memmory, another is read instruction), to figure out which is read memory, we need to use `write` to test them
+    - For syscall `write`, we can first use `read` to input something, and then try all other syscalls, if we get `write`, our input will be printed out. Input: `"\x50\x20\x01\x50\x20\x02\x50\x20\x08\x50\x20\x20\x50\x20\x40\x01\x20\x80\x01\x01\x??\x50\x20\x01\x50\x20\x02\x50\x20\x08\x50\x20\x20\x50\x20\x40\x01\x20\x80\x01\x01\x??\x01\x01\x01"`, the first `??` is `08` or `80`
+        - Finally, we can found that `0x80` is `read_memory`, `0x02` is `write`
+    - To figure out register `b`, we can use the input in the previous section, but each time, modify one register to `0x10`, if `b` is modified, there will not be any output. `b` is `0x2`
+    - Similarly, we can figure out `c`: `c` is `0x20`
+    - For `stm`, we can figure it out with the help of `write`. First, set `a` to `0x00`, `b` to `0x31`, then if we can `stm a b`, and call `write(0x1, 0x00, 0x10)`, `1` will be displayed. Input: `"\x00\x20\x80\x32\x20\x02\x??\x04\x80\x01\x20\x80\x00\x20\x02\x10\x20\x20\x01\x01\x02"`
+        - `stm` is `0x2`
+    - Now, here is what we have
+        - Registers:
+            ```
+            a: 0x80
+            b: 0x02
+            c: 0x20
+            ```
+        - Functions:
+            ```
+            0x01 sys
+            0x02 stm
+            0x20 imm
+            ```
+        - Syscalls:
+            ```
+            0x02 write
+            0x80 read (mem)
+            ```
+    
