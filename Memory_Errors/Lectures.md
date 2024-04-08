@@ -38,3 +38,27 @@
     int a[3] = {1, 2, 3}
     for(int i = 0; i <= 3; i++) a[i] = 0; // i <= 3 can cause overflow
     ```
+## Stack canaries
+- In function prologue, write random value at the end of the stack frame (right before the return address)
+- In function epilogue, make sure this value is still intact
+- Situational bypass methods
+    1. Leak the canary (using another vulnerability)
+    2. Brute-force the canary (for forking processes)
+        ```
+        char buf[16];
+        while(1) {
+            if(fork()) wait(0);
+            else {
+                read(0, buf, 128);
+                return;
+            }
+        }
+        ```
+    3. Jumping the canary (if the situation allows)
+        ```
+        char buf[16];
+        int i;
+        for(i = 0; i < 16; i++) read(0, buf + i, 1); // overwrite i and redirect the read to point to after the canary
+        ```
+
+## ASLR, Address Space Layout Randomization
