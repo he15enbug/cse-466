@@ -58,7 +58,57 @@
         ```
         char buf[16];
         int i;
-        for(i = 0; i < 16; i++) read(0, buf + i, 1); // overwrite i and redirect the read to point to after the canary
+        for(i = 0; i < 128; i++) read(0, buf + i, 1); // depending on the stack layout, we can overwrite i and redirect the read to point to after the canary
         ```
 
 ## ASLR, Address Space Layout Randomization
+- First appeared in 2001 as part of a Linux kernel patch set called PaX
+- Written by a team led by an anonymous coder
+- **Workarounds**: how do we redirect execution if we don't know where any code is
+    1. Leak
+        - The addressed still (mostly) have to be in memory so that the program can find its own assets
+    2. YOLO
+        - Program assets are page-aligned
+        - Overwrite just the page offset
+            - Pages are always aligned to a `0x1000` alignment
+            - Possible page addresses: `0x...000`, the last three nibbles of an address are always `000`
+            - If we overwrite the 2 least significant bytes of a pointer, we only have to brute-force one nibble (16 possible values) to successfully redirect the pointer to another location on the same page
+        - Requires some brute-forcing
+    3. Brute-force (situational)
+        ```
+        char buf[16];
+        while(1) {
+            if(fork()) wait(0);
+            else {
+                read(0, buf, 128);
+                return;
+            }
+        }
+        ```
+- Disabling ASLR for local testing
+    - In pwntools: `pwn.process('./vul_prog', aslr = False)`
+    - `gdb` will disable ASLR by default if it has permissions to do so. NOTE: for Set-UID binaries, remove the SUID bit before using `gdb` (`chmod` or `cp`)
+    - Spin up a shell whose (non-setuid) children will all have ASLR disabled
+        - `# setarch x86_64 -R /bin/bash`
+## Causes of disclosure
+- Buffer overread
+- Termination problems
+    ```
+    char name[10] = {0};
+    char flag[64];
+    read(open("/flag", 0), flag, 64);
+    printf("Name: ");
+    read(0, name, 10);
+    printf("Hello %s!\n", name); // If the input is 10 bytes, name will not contain a 0x00 byte at the end, and the flag will also be printed out
+    ```
+- Uninitialized data
+    - See this with compiler optimizations
+    ```
+    int main() { foo(); bar();}
+    void foo() {
+        char foo_buffer[64];
+        read(open("/flag", 0), foo_buffer, 64);
+        memset(foo_buffer, 0, 64);    
+    }
+    void bar() { char bar_buffer[64]; write(1, bar_buffer, 64); }
+    ```
