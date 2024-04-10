@@ -15,3 +15,12 @@
     - `rbp = 0x00007ffcca645050`
     - `&buffer = 0x7ffcca644fd0 (rbp-0x50)`
     - `&win = 0x401453`
+
+- *babymem_level9.0*: this time the stack canary is enabled. The core logic of the challenge is `while(n < size) n += read(0, input + n, 1);`, we can use this to overwrite local variable `n` to jump over the canary and overwrite the return address directly. The program is position indepentdent, that means each time we run it, the address of `win_authed` function varies. But due to memory alignment, the first 48 bits of `&win_authed` and the original return address are always the same, and the last 2 bytes of `&win_authed` are `0x?5f5`, so we only need to brute-force this `?` (there are 16 cases)
+    - `&buffer = rbp - 0x70`
+    - `&n = &buffer + 100`
+    - `&ret_addr = &buffer + 120`
+    - `&win_authed = (<OriginalReturnAddress> & 0xffffffff0000) + 0x?5f5`
+    - We need to jump over the canary, and modify the 2 bytes from `&buffer + 120` to `0xf5` and `0x?5`, respectively
+    - The initial value of `n` is zero, we need to first overwrite the buffer, such that after `n += read(0, input + 0, 1)`, `n` becomes 120. Then we can input the 2 bytes. To modify `n` to the target value (`0x78`), first we need to input at least `101` bytes, so we need to use buffer overflow to write `n` to `0x09`, then `n += 101` makes `n` to `120`
+- *babymem_level9.1*: 
