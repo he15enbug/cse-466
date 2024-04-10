@@ -1,1 +1,11 @@
 # Memory Errors
+- *babymem_level4.0*: There is a check on the payload size to ensure our input won't overflow the buffer. We can bypass it by given a payload size `-1`, the challenge uses a signed integer to hold this, which will treat this value as `-1`, so we can pass the check. But for the `read` function, it will treat `-1` as an unsigned integer `0xff...fff`, which is enough for us to reach the return address
+    - `rbp = 0x7ffcb4903d50`
+    - `&buffer = 0x7ffcb4903d00 (rbp-0x50)`
+    - `&win = 0x4024bc`
+- *babymem_level4.1*: use the same method as the previous challenge to bypass the payload size check. This time, no address information is provided, we need to `gdb` the challenge to figure out those information
+    - `rbp = 0x7fffca526940`
+    - `&buffer = 0x7fffca526900 (rbp-0x40)`
+    - `&win = 0x401b01`
+- *babymem_level5.0*
+- *babymem_level5.1*
