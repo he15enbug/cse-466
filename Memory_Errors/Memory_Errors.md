@@ -7,5 +7,11 @@
     - `rbp = 0x7fffca526940`
     - `&buffer = 0x7fffca526900 (rbp-0x40)`
     - `&win = 0x401b01`
-- *babymem_level5.0*
-- *babymem_level5.1*
+- *babymem_level5.0*: we are allowed to input multiple payload records, and they will be concatenated together. There is a size check to ensure the total size of the payload fits in the buffer. By debugging the challenge program, we can know that it only checks whether `record_size * record_num < 8`, if we input `-1` and `-1`, we can bypass this check. But another problem is that, the input is 32-bit, the `read()` will take a 64-bit value as its third parameter, `0xffffffff` in 64-bit registers will be a positive number, and the result is very large. When `rdx` is large, `read()` will not read anything, and return a negative result. I am not sure the reason for this yet, but we need to find another way. Take advantage of integer overflow. For example, `record_size = INT32_MIN`, `record_num = 2`, `record_size * record_num` will get `0`
+    - `rbp = 0x00007ffc1284b0d0`
+    - `&buffer = 0x7ffc1284b080 (rbp-0x50)`
+    - `&win = 0x401b01`   
+- *babymem_level5.1*: use the same method
+    - `rbp = 0x00007ffcca645050`
+    - `&buffer = 0x7ffcca644fd0 (rbp-0x50)`
+    - `&win = 0x401453`
