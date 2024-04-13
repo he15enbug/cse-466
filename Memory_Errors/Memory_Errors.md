@@ -23,5 +23,10 @@
     - `&win_authed = (<OriginalReturnAddress> & 0xffffffff0000) + 0x?5f5`
     - We need to jump over the canary, and modify the 2 bytes from `&buffer + 120` to `0xf5` and `0x?5`, respectively
     - The initial value of `n` is zero, we need to overwrite the buffer, such that after one `n += read(0, input + 0, 1)` instruction, `n` becomes 120 (`0x78`). Then we can input the 2 bytes. `read(0, input + 0, 1)` allows us to input at most 1 byte. First, we need to write 100 bytes to reach the position of `n`, then we need to write a specific value `0x77` to the location, and `n = 0x77+0x01 = 0x78`, we can then write the 2 bytes `0xf5` and `0xa5`
-    - An important thing is that there is a check on `edi` in `win_authed`, it only opens and prints out the flag when `edi` is `0x1337`, so we need to figure out how to set `edi` before the `challenge` returns
+    - An important thing is that there is a check on `edi` in `win_authed`, it only opens and prints out the flag when `edi` is `0x1337`, so we need to figure out how to set `edi` before the `challenge` returns. Unfortunately, we cannot modify `edi` to what we want. Fortunately, we can just jump to a position after that check in `win_authed`, e.g., jump to `win_authed+28` (`0x...?611`)
 - *babymem_level9.1*: 
+    - `win_authed+28` at `0x...?98c`
+    - `&n - &buffer = 0x7ffd906b02bc - 0x7ffd906b02a0 = 28 = 0x1c`
+    - `&ret_addr - &buffer = 0x7ffd906b02d0 - 0x7ffd906b02a0 + 8 = 0x38`
+- *babymem_level11.0*
+- *babymem_level11.1*

