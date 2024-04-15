@@ -28,5 +28,7 @@
     - `win_authed+28` at `0x...?98c`
     - `&n - &buffer = 0x7ffd906b02bc - 0x7ffd906b02a0 = 28 = 0x1c`
     - `&ret_addr - &buffer = 0x7ffd906b02d0 - 0x7ffd906b02a0 + 8 = 0x38`
-- *babymem_level11.0*: the flag will be loaded into memory, but at no point it will be printed out. The input buffer will be stored in an mapped page of memory
-- *babymem_level11.1*
+- *babymem_level11.0*: the flag will be loaded into memory, but at no point it will be printed out. The input buffer will be stored in an mapped page of memory. The flag is `0x8000` bytes after the address of the buffer, but I could only input `0x1000` bytes of data. I finally figured out that this limit `0x1000` is not set by the challenge, but `printf` (I used `printf "..." | /challenge/...` to run the challenge). Use `(echo "32768"; python3 -c "print('a' * 0x8000)") | /challenge/babymem_level11.0`
+- *babymem_level11.1*: debug the program to get the address information
+- *babymem_level12.0*
+- *babymem_level12.1*
