@@ -28,5 +28,5 @@
     - `win_authed+28` at `0x...?98c`
     - `&n - &buffer = 0x7ffd906b02bc - 0x7ffd906b02a0 = 28 = 0x1c`
     - `&ret_addr - &buffer = 0x7ffd906b02d0 - 0x7ffd906b02a0 + 8 = 0x38`
-- *babymem_level11.0*
+- *babymem_level11.0*: the flag will be loaded into memory, but at no point it will be printed out. The input buffer will be stored in an mapped page of memory
 - *babymem_level11.1*
