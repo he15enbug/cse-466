@@ -52,5 +52,7 @@
         ```
     - As far as I know, there is no way we can jump over the canary and write the return address in this situation. Instead, I noticed that in each run of `challenge`, the value of canary is the same, if we can cause the program to leak the canary (this may somehow modify part of the canary, but the next `challenge` is called before it checks the canary, so we can still get the flag before the program crashes), and in the next `challenge`, we can construct a payload to write this canary and then the target return address
 - *babymem_level12.1*: debug the program to find the key offset information, use the same method as level 12.0
-- *babymem_level13.0*
-- *babymem_level13.1*
+- *babymem_level13.0*: In `challenge`, e can find that some data is left in the stack frame, that means those data are not initialized after last use. By observing `main` function, we can see that there is a function `verify_flag`, which opens and read the content of `/flag` to memory, the address is `0x7ffd8421d97a`, then we can get `&buffer` in `challenge`, it is `0x7ffd8421d950` (i.e., `&flag=&buffer+0x2a`), we can pad non-zero bytes to the buffer until we reach the flag
+- *babymem_level13.1*: debug the program, find the offsets, leak the flag!
+- *babymem_level14.0*
+- *babymem_level14.1*
