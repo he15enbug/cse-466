@@ -30,5 +30,27 @@
     - `&ret_addr - &buffer = 0x7ffd906b02d0 - 0x7ffd906b02a0 + 8 = 0x38`
 - *babymem_level11.0*: the flag will be loaded into memory, but at no point it will be printed out. The input buffer will be stored in an mapped page of memory. The flag is `0x8000` bytes after the address of the buffer, but I could only input `0x1000` bytes of data. I finally figured out that this limit `0x1000` is not set by the challenge, but `printf` (I used `printf "..." | /challenge/...` to run the challenge). Use `(echo "32768"; python3 -c "print('a' * 0x8000)") | /challenge/babymem_level11.0`
 - *babymem_level11.1*: debug the program to get the address information
-- *babymem_level12.0*
-- *babymem_level12.1*
+- *babymem_level12.0*: we need to bypass the canary by utilizing a backdoor in the binary to overwrite the return address and get `win_authed` to be executed
+    - `&buffer = rbp-0x60`
+    - `&ret_addr = rbp+0x08`
+    - `&canary = rbp-0x08`
+    - `&win_authed+28 = 0x...?1fc`
+    - Here is what the backdoor does: It calls `strstr@plt` function, which searches string `"REPEAT"` in our input, if `"REPEAT"` doesn't occur, the `challenge` function checks the canary and returns. Otherwise, it will call `challenge` again, with parameters: `edi = DWORD PTR [rbp-0x84]`, `rsi = QWORD PTR [rbp-0x90]`, `rdx = QWORD PTR [rbp-0x98]` (actually, these are the parameters saved at the beginning of the `challenge`)
+    - Note that the `rbp (1st challenge) = rbp (2nd challenge) + 0xb0`
+        ```
+        +0x08 (ret_addr1)
+        0x00 (rbp1)
+        -0x08 (canary)
+        ...
+        -0x60 (buffer1)
+        ...
+        -0xa8 (ret_addr2)
+        -0xb0 (rbp2)
+        -0xb8 (canary)
+        ...
+        -0x110 (buffer2)
+        ```
+    - As far as I know, there is no way we can jump over the canary and write the return address in this situation. Instead, I noticed that in each run of `challenge`, the value of canary is the same, if we can cause the program to leak the canary (this may somehow modify part of the canary, but the next `challenge` is called before it checks the canary, so we can still get the flag before the program crashes), and in the next `challenge`, we can construct a payload to write this canary and then the target return address
+- *babymem_level12.1*: debug the program to find the key offset information, use the same method as level 12.0
+- *babymem_level13.0*
+- *babymem_level13.1*
