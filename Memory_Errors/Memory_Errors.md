@@ -54,5 +54,7 @@
 - *babymem_level12.1*: debug the program to find the key offset information, use the same method as level 12.0
 - *babymem_level13.0*: In `challenge`, e can find that some data is left in the stack frame, that means those data are not initialized after last use. By observing `main` function, we can see that there is a function `verify_flag`, which opens and read the content of `/flag` to memory, the address is `0x7ffd8421d97a`, then we can get `&buffer` in `challenge`, it is `0x7ffd8421d950` (i.e., `&flag=&buffer+0x2a`), we can pad non-zero bytes to the buffer until we reach the flag
 - *babymem_level13.1*: debug the program, find the offsets, leak the flag!
-- *babymem_level14.0*
-- *babymem_level14.1*
+- *babymem_level14.0*: this challenge is like a combination of level 13 and 12. This time, we cannot directly pad non-zero bytes to the canary to leak it, because to do that we need to pad 377 bytes, but the program prints out our input using format string `"%.371s"`, which will print out at most 371 bytes. We can also find the value of the canary at `&buffer+216` and `&buffer+104`
+- *babymem_level14.1*: debug the program, find the offsets, leak the flag!
+- *babymem_level15.0*
+- *babymem_level15.1*

