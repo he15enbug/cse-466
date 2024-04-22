@@ -77,3 +77,23 @@
         2. `prctl()` has bizarre possible effects
         3. `process_vm_writev()` allows direct access to other process' memory
 - *Syscall Confusion*
+    - Many 64-bit architectures are backwards compatible with their 32-bit ancestors
+        ```
+        amd64 / x86_64 -- x86
+               aarch64 -- arm
+                mips64 -- mips
+             powerpc64 -- ppc
+               sparc64 -- sparc
+        ```
+    - On some systems, we can switch between 32-bit mode and 64-bit mode *in the same process*, so the kernel must be ready for either. Interestingly, system call numbers differ between architectures, including 32-bit and 64-bit variants of the same architecture. Policies that allow both 32-bit and 64-bit system calls can fail to properly sandbox one or the other mode
+    - Example: the number for `exit()` is 60 on `amd64` (`mov rax, 60; syscall`), while 1 on `x86` (`mov eax, 1; int 0x80`)
+- *Kernel Vulnerabilities*
+    - If the `seccomp` sandbox is correctly configured, the attacker can still interact with the syscalls that are allowed, and try to trigger vulnerabilities in the kernel
+    - [Over 30 Chrome sandbox escapes in 2019 alone](https://github.com/allpaca/chrome-sbx-db)
+
+- Data exfiltration (e.g., the flag) even if we can't directly communicate with the outside world
+    - Send "smoke signals":
+        - Runtime of a process (`sleep(x)` syscall) can convey data
+        - Clean termination or a crash (can convey 1 bit)
+        - Return value of a program (`exit(x)`) can convey 1 byte
+    - Real-world example: attackers use DNS queries to bypass network egress filters
