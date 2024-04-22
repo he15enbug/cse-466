@@ -9,7 +9,7 @@
 ### Debugging Refresher
 - Finished in course [CSE 365](https://github.com/he15enbug/cse-365)
 ### Reverse Engineering **[Finished]**
-### Memory Errors **[28/30]**
+### Memory Errors **[Finished]**
 ### Sandboxing
 ### Program Exploitation
 ### Race Conditions

