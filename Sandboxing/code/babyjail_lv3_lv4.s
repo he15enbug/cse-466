@@ -16,7 +16,7 @@ _start:
     mov rax, 0x101
     syscall
 
-    # sendfile(1, flag_fd, 1, 1000)
+    # sendfile(1, flag_fd, 0, 1000)
     mov rdi, 1
     mov rsi, rax
     mov rdx, 0
