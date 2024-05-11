@@ -1,5 +1,9 @@
 # Sandboxing
 - *babyjail-level1*: the program takes the file path as parameter, and display its content. The program will use `chroot` to sandbox the process. Use `../../../../../../flag` as parameter (use enough `../` to ensure that we reach the root path)
 - *babyjail-level2*: the program takes our shellcode as input, and run it. We only need to construct the shellcode that opens and prints out `../../../../flag` to stdout, and input it to the challenge program
-- *babyjail-level3*
-- *babyjail-level4*
+- *babyjail-level3*: the challenge moves the current directory into the jail, so we cannot use `../../../../` to get to the root path of the system. `chroot('/')` to escape. But a vulnerability is that before it changes the root and current directory, it will open a file or directory specified by us in the argument. We can open `/` (the root path of the system), then, we can use `openat(root_fd, 'flag', O_RDONLY)` to open `/flag` (the real flag) even inside this `chroot` jail
+- *babyjail-level4*: same setting as in level 3, but allows only the following syscalls: ["openat", "read", "write", "sendfile"]. Luckily, we only used `openat` and `sendfile` in level 3, so we can directly use the code in level 3 to solve level 4
+- *babyjail-level5*
+- *babyjail-level6*
+- *babyjail-level7*
+- *babyjail-level8*
