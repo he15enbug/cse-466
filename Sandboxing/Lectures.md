@@ -37,7 +37,7 @@
             - `int openat(int dirfd, char *pathname, int flags)`
             - `int execveat(int dirfd, char *pathname, char **argv, char **envp, int flags)`
             - `dirfd` can be a file descriptor representing any `open()`ed directory, or the special value `AT_FDCWD` (it is used to indicate that the current working directory should be used as the directory file descriptor). **Note** that `chroot` does not change the current working directory
-    - Forgetfulness: the kernel has no memory of previous `chroot`s for a process (you can `chroot` again to escape, e.g., `chroot("/")`)
+    - Forgetfulness: the kernel has no memory of previous `chroot`s for a process (you can `chroot` again to escape, e.g., `chroot("../../../../")`, if the current working directory is not moved into the jail)
 - Safety
     - A user with an effective ID of 0 can always break out of a `chroot`, unless the `chroot` syscall is blocked
     - Missing other forms of isolation: PID, network, IPC (*Inter-Process Communication*)

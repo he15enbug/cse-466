@@ -5,5 +5,5 @@
 - *babyjail-level4*: same setting as in level 3, but allows only the following syscalls: ["openat", "read", "write", "sendfile"]. Luckily, we only used `openat` and `sendfile` in level 3, so we can directly use the code in level 3 to solve level 4
 - *babyjail-level5*: use `dir_fd = open('/', 0, 0)` (inside the `chroot` sandbox), `linkat(3, 'flag', dir_fd, 'xxx')`, `flag_fd =  open('/xxx', 0, 0)`, then `sendfile(1, flag_fd, 0, 1000)`
 - *babyjail-level6*: use `fchdir(dir_fd)` to switch to the real root (that we previously opened)
-- *babyjail-level7*
+- *babyjail-level7*: we can only use these system calls: ["chdir", "chroot", "mkdir", "open", "read", "write", "sendfile"]. None of `chroot`, `chdir`, and `mkdir` takes file descriptor as input, how can we take the advantage of the previously opened directory (`/`, or something else that we can specify)? We cannot. But one thing important is that when current working directory is not inside the chroot jail, we can use `../../../../` to get the root path of the OS, we can `mkdir` a new directory inside the jail, and `chroot` to the new directory, this will not change the current working directory, i.e., our current working directory is now outside the jail!
 - *babyjail-level8*
