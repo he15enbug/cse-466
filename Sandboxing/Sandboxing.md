@@ -9,4 +9,12 @@
 - *babyjail-level7*: we can only use these system calls: ["chdir", "chroot", "mkdir", "open", "read", "write", "sendfile"]. None of `chroot`, `chdir`, and `mkdir` takes file descriptor as input, how can we take the advantage of the previously opened directory (`/`, or something else that we can specify)? We cannot. But one thing important is that when current working directory is not inside the chroot jail, we can use `../../../../` to get the root path of the OS, we can `mkdir` a new directory inside the jail, and `chroot` to the new directory, this will not change the current working directory, i.e., our current working directory is now outside the jail!
 - *babyjail-level8*: we can only use these system calls: ["openat", "read", "write", "sendfile"]. But unlike level 4, in this challenge, it will no longer open a directory before changing the root and current working directory, so we cannot use `openat(3, 'flag', 0)` to escape the jail. We can open `/` (with FD `3`) when running the challenge using `exec`: `exec 3</ /challenge/babyjail_level8 < shellcode-raw`. The assembly code for level 4 can be reused. Note that when the command finishes, the terminal will be closed. To be able to copy the flag, we can save the output into a file: `(exec 3</ /challenge/babyjail_level8 < shellcode-raw) > flag.txt`
 - *babyjail-level9*: allowed system calls: [`close`, `stat`, `fstat`, `lstat`], the challenge will not open a file for us before it creates a `chroot` jail. The tricky part is that this challenge allows only syscall number `3`, `4`, `5`, and `6`, and it uses`seccomp` to apply the filter for `x86_32` architecture. In `x86_32`, these numbers are actually the following system calls: `read`, `write`, `open`, and `close`, so we can directly open, read, and write the flag. Mind that the calling convention for `x86_32` is to pass the arguments using `ebx`, `ecx`, `edx`... And we can use `int 0x80` to make a system call
-- *babyjail-level0*
+- *babyjail-level10*: this challenge only allows `read` and `exit` system call, and it will open a file for us before `chroot`ing. There is a side channel to leak the flag from memory, that is, we `read` the opened flag file, and using 1 byte of the flag as the parameter of `exit`, so we are able to learn 1 byte of the flag each time
+- *babyjail-level11*
+- *babyjail-level12*
+- *babyjail-level13*
+- *babyjail-level14*
+- *babyjail-level15*
+- *babyjail-level16*
+- *babyjail-level17*
+- *babyjail-level18*
