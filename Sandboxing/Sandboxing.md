@@ -54,6 +54,8 @@
 
 ## babyjail-level14
 
+- Now we start to try to escape sandboxes implemented using modern namespacing techniques. Before starting level 14 to 18, watch the *Namespacing Live Session 1 & 2*
+
 ## babyjail-level15
 
 ## babyjail-level16

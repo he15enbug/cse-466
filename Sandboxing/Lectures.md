@@ -1,5 +1,7 @@
 # Sandboxing Lectures
+
 ## Background
+
 - (1950s) First, everything ran on bare metal
     - Problem: every process was omnipotent
 - (1960s) Hardware measures were developed to separate "system" and `process` code
@@ -27,6 +29,7 @@
     - need another set of vulnerabilities to "break out" of the sandbox
 
 ## `chroot`
+
 - Traditional sandbox: `chroot` jail. It used to be the de-facto sandboxing utility
 - It changes the meaning of `/` for a process and its children
 - `chroot("/tmp/jail")` will disallow processes from getting out of the jail
@@ -51,6 +54,7 @@
     - `open("../../file", O_RDONLY)`, `openat(AT_FDCWD, "../../file", O_RDONLY)`: open a file relative to the current working directory
 
 ## `seccomp`
+
 - *Syscall Filtering*: modern sandboxes *heavily* restrict permitted system calls through the use of a kernel-level sandboxing mechanism: `seccomp`
 - `seccomp` allows developers to write [complex rules](https://man7.org/linux/man-pages/man3/seccomp_rule_add.3.html) (also inherited by children) to:
     - Allow certain syscalls
@@ -62,7 +66,9 @@
         - Originally used to filter network traffic (`iptables`)
         - Used to implement system-wide syscall tracing: [https://github.com/iovisor/bcc](https://github.com/iovisor/bcc)
     - Used with `seccomp()` to apply syscall filtering to processes
+
 ### Escaping `seccomp()`
+
 - Generally, to do anything useful, a sandboxed process needs to be able to communicate with the privileged process. Normally, this means allowing the sandboxed process to use **some** syscalls. This opens up some attack vectors:
     - Permissive policies
     - Syscall confusion
@@ -78,6 +84,7 @@
         3. `process_vm_writev()` allows direct access to other process' memory
 - *Syscall Confusion*
     - Many 64-bit architectures are backwards compatible with their 32-bit ancestors
+
         ```
         amd64 / x86_64 -- x86
                aarch64 -- arm
@@ -85,6 +92,7 @@
              powerpc64 -- ppc
                sparc64 -- sparc
         ```
+
     - On some systems, we can switch between 32-bit mode and 64-bit mode *in the same process*, so the kernel must be ready for either. Interestingly, system call numbers differ between architectures, including 32-bit and 64-bit variants of the same architecture. Policies that allow both 32-bit and 64-bit system calls can fail to properly sandbox one or the other mode
     - Example: the number for `exit()` is 60 on `amd64` (`mov rax, 60; syscall`), while 1 on `x86` (`mov eax, 1; int 0x80`)
 - *Kernel Vulnerabilities*
@@ -97,3 +105,43 @@
         - Clean termination or a crash (can convey 1 bit)
         - Return value of a program (`exit(x)`) can convey 1 byte
     - Real-world example: attackers use DNS queries to bypass network egress filters
+
+## Namespacing
+
+- A **namespace** wraps a global system resource in an abstraction that makes it appear to the processes within the namespace that they have their own isolated instance of the global resource. Changes to the global resource are visible to other processes that are members of the namespace, but are invisible to other processes. One use of namespaces is to implement containers
+
+### The `unshare` command
+    
+- Creates new namespaces and then executes the specified program
+- Some options
+
+    ```sh
+    $ sudo unshare --help
+    Options:
+    -m, --mount[=<file>]      unshare mounts namespace
+    -u, --uts[=<file>]        unshare UTS namespace (hostname etc)
+    -i, --ipc[=<file>]        unshare System V IPC namespace
+    -n, --net[=<file>]        unshare network namespace
+    -p, --pid[=<file>]        unshare pid namespace
+    -U, --user[=<file>]       unshare user namespace
+    -C, --cgroup[=<file>]     unshare cgroup namespace
+    ...
+    ```
+
+- Examples:
+    
+    ```sh
+    $ mkdir test
+    $ mkdir a
+    $ sudo unshare -m bash
+    $ mount --bind /bin $PWD/a
+    $ ls -ld a
+    ... a
+    $ ls -ld a/bash
+    ... a/bash
+
+    (in another bash, which is in another namespace)
+    $ ls a
+    (nothing)
+    ```
+
