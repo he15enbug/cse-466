@@ -99,6 +99,137 @@
 
 ## Processes and Threads
 
+### Processes
+
+- Processes have their own:
+    - Virtual Memory
+        - Stack
+        - Heap
+        - etc.
+    - Registers
+    - File descriptors
+    - Process ID
+    - Security properties
+        - `uid`
+        - `gid`
+        - `seccomp` rules
+
+### Threads
+
+- A process can have multiple threads (and has at least its main thread)
+- Threads share:
+    - Virtual memory (exclude stack)
+    - File descriptors
+- But have their own
+    - Registers
+    - Stack
+    - Thread ID
+    - Security properties: `uid`, `gid`, `seccomp` rules
+
+#### Creating Threads
+
+- **High level**
+    - Threads can be created and managed using many different high-level libs, e.g., `pthread`
+        ```c
+        void *thread_main(int arg) {
+            printf("Thread %d, PID %d, TID %d, UID %d\n", arg, getpid(), gettid(), getuid());
+        }
+        main() {
+            pthread_t thread1, thread2;
+            pthread_create(&thread_1, NULL, thread_main, 1);
+            pthread_create(&thread_2, NULL, thread_main, 2);
+            printf("Main thread: PID %d, TID %d, UID %d\n", getpid(), gettid(), getuid());
+            pthread_join(thread1, NULL);
+            pthread_join(thread2, NULL);
+        }
+        ```
+    - Execution order between threads is not deterministic
+- **Low level**
+    - At low level, threads are created using the `clone()` system call
+    - `clone()` is the successor of `fork()`, allowing for more control over what is shared between the parent and child
+    - The `pthread_create()` library function uses `clone()` syscall to create a child process that shares memory and other resources with the parent
+    - `clone()` can do other things, e.g., starting containers with `CLONE_NEWNS`
+
+#### Discrepancies (between `libc` and the Linux system call interface)
+
+- Examples:
+    - `setuid`: the `libc` syscall wrapper will set the UID of all the threads of the process, but the Linux syscall only set the UID of the caller thread
+    - `exit`: the `libc` syscall wrapper will actually call the `exit_group()` syscall to terminate all the threads, while the Linux syscall only terminates the caller thread
+
+#### Terminating Threads
+
+- A common practice is to communicate with threads using global variables. It might be unsafe to access global memory from multiple threads. It might cause *Races in Memory*
+
 ## Races in Memory
+
+### Motivating Example
+
+- Consider the following: what if check 1 and check 2 are passed, we provide a value larger than or equal to 16 for `read(0, &size, 1)` before executing `read(0, buffer, size)`
+    ```c
+    unsigned int size =42;
+    void read_data() {
+        char buffer[16];
+        if(size < 16) { <------- Check 1
+            printf("Valid size! Enter payload up to %d bytes.\n", size);
+            printf("Read %d bytes!\n", read(0, buffer, size));
+        }
+        else printf("Invalid size %d!\n", size);
+    }
+
+    void *thread_allocator(int arg) {
+        while(1) read_data();
+    }
+
+    main() {
+        pthread_t allocator;
+        pthread_create(&allocator, NULL, thread_allocator, 0);
+        while(size != 0) read(0, &size, 1); <------- Check 2
+        exit(0);
+    }
+    ```
+
+### Special Case: Double Fetch
+
+- `copy_from_user()` in kernel space: sometimes, kernel developers make mistakes
+    ```c
+    int check_safety(char *user_buffer, int maximum_size) {
+        int size;
+        copy_from_user(&size, user_buffer, sizeof(size));
+        return size <= maximum_size;
+    }
+    static long device_ioctl(struct file *file, unsigned int cmd, unsigned long user_buffer) {
+        int size;
+        char buffer[16];
+        if(!check_safety(user_buffer, 16)) return;
+        copy_from_user(&size, user_buffer, sizeof(size));
+        copy_from_user(buffer, user_buffer+sizeof(size), size);
+    }
+    ```
+- This is a TOCTOU, with the race between the kernel and a sibling thread of the caller
+
+### Othre Data Races
+
+- General data races can have weird effects
+    ```c
+    unsigned int num = 0;
+    void *thread_main(int arg) {
+        while(1) {
+            num++;
+            num--;
+            if(num != 0) printf("NUM: %d\n", num);
+        }
+    }
+    main() {
+        // create and run 2 threads
+    }
+    ```
+### Preventing Data Races
+
+- Utilizing *mutexes* (inter-thread locks): a block of code protected by mutexes is called *critical section*
+
+### Detecting Data Races
+
+- **valgrind** has two tools: `helgrind` and `drd`, both detect data races if the relevant code is triggered by test cases
+- In general, this problem remains unsolved. A recent example: `CVE-2020-12652`, a double-fetch bug in an `ioctl` handler in the Linux kernel
 
 ## Signals and Reentrancy
