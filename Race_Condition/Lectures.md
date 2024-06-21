@@ -16,13 +16,16 @@
 ### TOCTOU: Time of Check / Time of Use
 
 - Some execution orderings can be **buggy**: `P1`'s `do_action()` might be taking actions in a changed world from the one examined by `check_input()`
+
     ```c
     P1 check_input()
     P2 check_input()
     P2 do_action() <-- might have changed the world
     P1 do_action()
     ```
+
 - Abusing concurrency errors requires *racing* to carefully impact the state of an application during a weak point. Hence: **Race Condition**
+
     ```c
     P1 check_input()
     WEAK POINT
@@ -42,13 +45,16 @@
 ### The Filesystem
 
 - Huge window of opportunity: any point between `open()` and full startup of `/bin/sh` is an attack window
+
     ```c
     int fd = open(argv[1], O_WRONLY | O_CREAT | O_TRUNC, 0755);
     write(fd, "#!/bin/sh\necho SAFE\n", 20);
     close(fd);
     execl("/bin/sh", "bin/sh", argv[1], NULL); // what if the file is replaced before being executed
     ```
+
 - Much smaller window. General exploitation: slow down the victim as much as possible
+
     ```c
     int echo_fd = open("/bin/echo", O_RDONLY);
     int fd = open(argv[1], O_WRONLY | O_CREAT | O_TRUNC, 0755);
@@ -71,6 +77,7 @@
 ##### Filesystem Mazes
 
 - We can do better than 4096 bytes by using symbolic links: we can use paths like `/my/maze/a_end/root/b_end/root/c_end/root/my_file` to reference `/my/maze/my_file` through a huge number of directory traversals
+
     ```
     /my/maze/a/1/2/3/4/5/6/7/root -> /my/maze
     
@@ -84,6 +91,7 @@
 
     /my/maze/c_end -> /my/maze/c/1/2/3/4/5/6/7/
     ```
+
 - Mind that Linux has a limit of 40 symbolic links per path resolution
 
 #### Example
@@ -130,6 +138,7 @@
 
 - **High level**
     - Threads can be created and managed using many different high-level libs, e.g., `pthread`
+
         ```c
         void *thread_main(int arg) {
             printf("Thread %d, PID %d, TID %d, UID %d\n", arg, getpid(), gettid(), getuid());
@@ -143,6 +152,7 @@
             pthread_join(thread2, NULL);
         }
         ```
+    
     - Execution order between threads is not deterministic
 - **Low level**
     - At low level, threads are created using the `clone()` system call
@@ -165,6 +175,7 @@
 ### Motivating Example
 
 - Consider the following: what if check 1 and check 2 are passed, we provide a value larger than or equal to 16 for `read(0, &size, 1)` before executing `read(0, buffer, size)`
+
     ```c
     unsigned int size =42;
     void read_data() {
@@ -191,6 +202,7 @@
 ### Special Case: Double Fetch
 
 - `copy_from_user()` in kernel space: sometimes, kernel developers make mistakes
+
     ```c
     int check_safety(char *user_buffer, int maximum_size) {
         int size;
@@ -205,11 +217,13 @@
         copy_from_user(buffer, user_buffer+sizeof(size), size);
     }
     ```
+
 - This is a TOCTOU, with the race between the kernel and a sibling thread of the caller
 
 ### Othre Data Races
 
 - General data races can have weird effects
+
     ```c
     unsigned int num = 0;
     void *thread_main(int arg) {
@@ -223,6 +237,7 @@
         // create and run 2 threads
     }
     ```
+
 ### Preventing Data Races
 
 - Utilizing *mutexes* (inter-thread locks): a block of code protected by mutexes is called *critical section*
@@ -233,3 +248,95 @@
 - In general, this problem remains unsolved. A recent example: `CVE-2020-12652`, a double-fetch bug in an `ioctl` handler in the Linux kernel
 
 ## Signals and Reentrancy
+
+### Recall: Signals
+
+- Send a signal to a process: `int kill(pid_t pid, int sig)`, examples:
+  
+    ```
+    SIGHUP  Term    Hangup detected on controlling terminal or death of controlling process
+    SIGINT  Term    Interrupt from keyboard
+    SIGSEGV Core    Invalid memory reference
+    ```
+
+### Handling Signals
+
+- Processes can register signal handlers to handle signals:
+
+    ```c
+    // set up a signal handler for a specific signal
+    sighandler_t signal(int signum, sighandler_t handler);
+
+    // change the action taken by a process on receipt of a specific signal
+    int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact);
+    ```
+
+- **Effect**: signals pause process execution and invoke the handler
+- **Access**: we can send ANY signal to ANY process that has the same rUID (real user ID) as us, even if their eUID is 0
+- **Capability**: this means we can cause any program to suddenly and unexpectedly divert execution to the signal handler!
+- **Note**: this also works to yank program out of a critical section
+
+### Offensive Signals
+
+- Crazy issues can arise when code runs in unexpected order
+
+    ```c
+    int num = 0;
+    void signal_handler(int signum) {
+        num = 0;
+    }
+    int main() {
+        signal(SIGUSR1, signal_handler);
+        while(1) {
+            if(num == 0) num++;
+            // <---- If the program receives SIGUSR1 here
+            num--;
+            if(num != 0) printf("NUM: %d\n", num);
+        }
+    }
+    ```
+
+### Reentrancy
+
+- **Reentrant** function are functions that would operate properly even when interrupted with an instance of themselves
+  
+    ```c
+    int tmp;
+    void swap(int* x, int* y) {
+        temp = *x;
+        *x = *y;
+        // <---- Position 1
+        *y = temp;
+    }
+    void call_swap() {
+        int x = 1, y = 2;
+        swap(&x, &y);
+    }
+    int main() {
+        signal(SIGUSR1, call_swap);
+        call_swap();
+    }
+    ```
+
+- What happens if this program receives `SIGUSR1` at position 1
+
+### Safe Signal Practices
+
+- Do not call non-reentrant functions in signal handlers:
+    1. Our handler might have interrupted those functions mid-execution
+    2. Anohter signal might interrupt our signal handler's non-reentrant invocations mid-execution
+    3. Depending on settings (`SA_NODEFER` flag to `sigaction()`), another iteration of the same signal might interrupt our signal
+- Note: `malloc()` and `free()` are not reentrant, `man signal-safety` for more info
+
+### Digging into Signal Delivery
+
+- When do signal handlers get triggered, really?
+    - **Time slice**: 
+        - The kernel gives our process a limited time slice in which to run
+        - The kernel hijacks the CPU from our process at the end of a time slice
+        - If our process does a syscall *near* to the end of our time slice, the kernel might confiscate the rest of our time slice
+    - **Signal checking**:
+        - The kernel will check for received signals to our process, and trigger handlers, the next time it schedules our process for execution (either after a syscall or at the beginning of a new time slice)
+    - **Takeaway**:
+        - The more syscalls our process makes, the less chance of having a handler run mid-instruction
+ 
