@@ -59,3 +59,17 @@
 ## babyrace_level3.1
 
 - Use the script in level 3.0
+
+## babyrace_level4.0
+
+- In this level, we cannot guess anymore. By inspecting the assembly code of the challenge (we can use `gdb` or some other tools), we can see that there is a `win()` function, but it is never invoked in `main()`. What we need to do is to exploit the race condition to overwrite the return address of `main()` to the address of `win()`
+- Here is some useful information:
+    - `&win=0x4012f6`
+    - `&buffer=$rbp-0x190` (i.e., `&ret_addr=&buffer+0x198`)
+- In the script, we need to prepare a file with payload: `"a"*408+"\xf6\x12\x40\x00\x00\x00"`
+
+## babyrace_level4.1
+
+- Find the return address, and overwrite it with the address of `win()`, just like level 4.1
+- Use a script to repeat the challenge: `./repeat_challenge.sh 4.1 | grep "pwn"`
+- Then, wait
