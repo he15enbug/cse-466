@@ -213,6 +213,65 @@
 
 ### Privilege Escalation
 
+#### Kernel Memory Corruption
+
+- Recall
+    ```c
+    copy_to_user(userspace_address, kernel_address, length);
+    copy_from_user(kernel_address, userspace_address, length);
+    ```
+- Kernel memory must be kept uncorrupted. Corruption can
+    - Crash the system
+    - Brick the system
+    - Escalate process privileges
+    - Interfere with other processes
+- All user data should be carefully handled and **only** accessed with `copy_to_user` and `copy_from_user`
+
+#### Kernel Vulnerabilities Happen
+
+- Kernel code is just code
+- Memory corruptions, allocator misuse, etc, all happen in the kernel
+- What can we do with this? Privilege Escalation
+
+#### The Classic: Privilege Escalation
+
+- The kernel tracks user the privileges (and other data) of every running process
+    ```c
+    struct task_struct {
+        struct thread_info thread_info;
+
+        ...
+
+        /* Process credentials */
+
+        /* Objective and real subjective task credentials (COW, Copy-On-Write) */
+        const struct cred __rcu *real_cred;
+        /* Effective (overridable) subjective credentials (COW) */
+        const struct cred __rcu *cred;
+    
+    };
+
+    struct cred {
+        ...
+        kuid_t euid; /* effective UID of the task */
+        ...
+    }
+    ```
+- How do we set these?
+    - The credentials are supposed to be immutable (i.e., they can be cached elsewhere, and shouldn't be updated in place). Instead, they can be replaced: `commit_creds(struct cred *)`
+    - The cred struct seems a bit complex, but the kernel can make us a fresh one
+        ```c
+        struct cred * prepare_kernel_cred(struct task_struct *reference_task_struct)
+        ```
+    - Luckily, if we pass NULL to the reference struct, it will give us a cred struct with root access and full privileges (?)
+    - We have to run: `commit_creds(prepare_kernel_cred(0))`
+- Complications
+    - How do we know where `commit_creds` and `prepare_kernel_cred` are in memory?
+        - Older kernels (or newer kernels when kASLR is disabled) are mapped at predictable locations
+        - `/proc/kallsym` is an interface for the kernel to give root these addresses
+        - If enabled, `gdb` support is our friend
+        - Otherwise, it's the exact same problem as userspace ASLR
+
 ### Escaping Seccomp
 
 ## Kernel Security Part
