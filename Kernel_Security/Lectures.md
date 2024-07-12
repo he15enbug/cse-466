@@ -92,6 +92,7 @@
 #### Debugging
 
 - If we have a new enough version of `gdb`, and the kernel is configured with debug symbols, and kernel ASLR (Address Space Layout Randomization) is off... (Note: `ni` seems to be broken, use `si` or `finish`, instead)
+    
     ```
     # gdb vmlinux
     (gdb) b *0x400800
@@ -150,29 +151,37 @@
 
 - One interaction mode is to handler `read()` and `write()` for our module's exposed file
 - From kernel space
+    
     ```c
     static ssize_t device_read(struct file *filp, char *buffer, size_t length, loff_t *offset)
     static ssize_t device_write(struct file *filp, const char *buffer, size_t len, loff_t *off)
     ```
+
 - From user space
+    
     ```c
     int fd = open("/dev/pwn-college", 0);
     read(fd, buffer, 128);
     ```
+
 - Useful for modules that deal with streams (e.g., a stream of audio or video data)
 
 #### File `ioctl()`
 
 - Input/Output Control provides a much more flexible interface
 - From kernel space
+    
     ```c
     static long device_ioctl(struct file *filp, unsigned int ioctl_num, unsigned long ioctl_param)
     ```
+
 - From user space
+    
     ```c
     int fd = open("/dev/pwn-college", 0);
     ioctl(fd, COMMAND_CODE, &custom_data_structure);
     ```
+
 - Useful for setting and querying non-stream data (e.g., webcam resolution settings as opposed to webcam video stream)
 
 #### Driver Interaction: Inside the Kernel
@@ -216,10 +225,12 @@
 #### Kernel Memory Corruption
 
 - Recall
+    
     ```c
     copy_to_user(userspace_address, kernel_address, length);
     copy_from_user(kernel_address, userspace_address, length);
     ```
+
 - Kernel memory must be kept uncorrupted. Corruption can
     - Crash the system
     - Brick the system
@@ -236,6 +247,7 @@
 #### The Classic: Privilege Escalation
 
 - The kernel tracks user the privileges (and other data) of every running process
+    
     ```c
     struct task_struct {
         struct thread_info thread_info;
@@ -257,22 +269,114 @@
         ...
     }
     ```
+
 - How do we set these?
     - The credentials are supposed to be immutable (i.e., they can be cached elsewhere, and shouldn't be updated in place). Instead, they can be replaced: `commit_creds(struct cred *)`
     - The cred struct seems a bit complex, but the kernel can make us a fresh one
+        
         ```c
         struct cred * prepare_kernel_cred(struct task_struct *reference_task_struct)
         ```
+
     - Luckily, if we pass NULL to the reference struct, it will give us a cred struct with root access and full privileges (?)
     - We have to run: `commit_creds(prepare_kernel_cred(0))`
 - Complications
     - How do we know where `commit_creds` and `prepare_kernel_cred` are in memory?
         - Older kernels (or newer kernels when kASLR is disabled) are mapped at predictable locations
-        - `/proc/kallsym` is an interface for the kernel to give root these addresses
+        - `/proc/kallsyms` is an interface for the kernel to give root these addresses
         - If enabled, `gdb` support is our friend
         - Otherwise, it's the exact same problem as userspace ASLR
 
 ### Escaping Seccomp
+
+- If the `seccomp` sandbox is correctly configured, the attacker can't do anything useful... But they can still interact with the system calls that are allowed to try to trigger vulnerabilities in the kernel
+- [Over 30 Chrome sandbox escapes in 2019 alone](https://github.com/allpaca/chrome-sbx-db)
+- Stay tuned for Advanced Exploitation module
+
+#### Let's dig in
+
+- The `cred` struct is a member of `task_struct`, which also has
+
+    ```c
+    struct task_struct {
+        // LOTS of stuff, including
+        const struct cred __rcu *cred;
+        struct thread_info thread_info;
+    }
+
+    struct thread_info {
+        unsigned long flags;    /* low level flags */
+        u32 status;             /* thread synchronous flags */
+    }
+    ```
+
+- `flags` is a bit field that, among many other things, holds a bit named `TIF_SECCOMP`. Useful references: [the task struct](https://elixir.bootlin.com/linux/latest/source/include/linux/sched.h#L632), [the flags](https://elixir.bootlin.com/linux/latest/source/arch/x86/include/asm/thread_info.h#L85)
+#### In Linux's syscall entry
+- [Reference](https://elixir.bootlin.com/linux/latest/source/arch/x86/entry/vsyscall/vsyscall_64.c#L217)
+
+    ```c
+    /*
+	 * Handle seccomp.  regs->ip must be the original value.
+	 * See seccomp_send_sigsys and Documentation/userspace-api/seccomp_filter.rst.
+	 *
+	 * We could optimize the seccomp disabled case, but performance
+	 * here doesn't matter.
+	 */
+	regs->orig_ax = syscall_nr;
+	regs->ax = -ENOSYS;
+	tmp = secure_computing();
+	if ((!tmp && regs->orig_ax != syscall_nr) || regs->ip != address) {
+		warn_bad_vsyscall(KERN_DEBUG, regs,
+				  "seccomp tried to change syscall nr or ip");
+		force_exit_sig(SIGSYS);
+		return true;
+	}
+    ```
+
+#### Digging into seccomp...
+
+- [Reference](https://elixir.bootlin.com/linux/latest/source/include/linux/seccomp.h#L43)
+
+    ```c
+    static inline int secure_computing(void)
+    {
+        if (unlikely(test_syscall_work(SECCOMP)))
+            return  __secure_computing(NULL);
+        return 0;
+    }
+    int __secure_computing(const struct seccomp_data *sd)
+    {
+        // LOST of stuff, then...
+        
+        this_syscall = sd ? sd->nr : syscall_get_nr(current, task_pt_regs(current));
+
+        switch(mode) {
+            case SECCOMP_MODE_STRICT:
+                __seccopm_computing_strict(this_syscall); /* may call do_exit */
+                return 0;
+            case SECCOMP_MODE_FILTER:
+                return __seccomp_filter(this_syscall, sd, false);
+            default:
+                BUG();
+        }
+    }
+    ```
+
+#### Takeaway
+
+- To escape seccomp, we just need to do (in KERNEL space):
+    
+    ```c
+    current_task_struct->thread_info.flags &= ~(1 << TIF_SECCOMP)
+    ```
+
+- How do we get the `current_task_struct`?
+    - We are in luck! The kernel points the segment register `gs` to the current task struct. In kernel development, there is a shorthand macro for this: `current`
+- The plan:
+    - Access `current->thread_info.flags` via the `gs` register
+    - Clear the `TIF_SECCOMP` flag
+    - Get the flag!
+- Caveat: our children will still be `seccomp`ed (that's stored elsewhere)
 
 ## Kernel Security Part
 
