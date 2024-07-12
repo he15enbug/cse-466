@@ -382,6 +382,165 @@
 
 ### Memory Management
 
+- Recall: Computer Architecture
+- Recall: Process Memory
+    - Each Linux process has a virtual memory space. It contains:
+        - The binary
+        - The libraries
+        - The heap
+        - The stack
+        - Any memory specifically mapped by the program
+        - Some helper regions
+        - **Kernel code** in the "upper half" of the memory (above `0x8000000000000000` on 64-bit architectures), inaccessible to the process
+    - **Virtual memory** is dedicated to our process
+    - **Physical memory** is shared among the whole system
+    - We can see this whole space by looking at `/proc/self/maps`
+
+#### Physical Memory
+
+- Physical memory is the RAM inside our computer. But there can be only one physical address `0x400100...`. To load multiple programs into memory, one solution is position independent code (like libraries). But what about isolation?
+
+#### Virtual Memory
+
+- Virtual memory provides different views into physical memory
+- The OS kernel (in collaboration with the CPU architecture) maintains mappings between a process' virtual memory addresses and the actual addresses they correspond to in physical memory
+
+#### How to Map Virtual and Physical Memory
+
+- **Strawman solution**: Each process gets ... 4 KB of memory. Each process' entire virtual memory gets mapped at some place in physical memory
+    - Pro: easy to track the mappings
+    - Con: what if P2 needs to allocate more memory
+
+    ```
+    +-----------------------------------------+
+    | P1 Memory   | P2 Memory   | P3 Memory   | <- Physical Memory
+    +-----------------------------------------+
+    +-----------------------------------------+
+    | P1 V-Memory | P2 V-Memory | P3 V-Memory | <- Virtual Memory
+    +-----------------------------------------+
+    ```
+
+- **Solution**: non-contiguous physical memory
+    - Track the physical base address of pages of virtual addresses
+    - The physical position of contiguous virual pages can be non-contiguous
+
+    ```
+    +-------------------------------------------------------+
+    |  P1 page 1  |  P2 page 1  |  P3 page 1  |  P2 page 2  | <- Physical Memory
+    +-------------------------------------------------------+
+    +-------------------------------------------------------+
+    | P1 V-Page 1 | P2 V-Page 1 | P2 V-Page 2 | P3 V-Page 1 | <- Virtual Memory
+    +-------------------------------------------------------+
+    ```
+
+#### The Page Table
+
+- Diving back into history, we start with the **Page Table** full of **Page Table Entries**
+- Each page table holds 512 entries, mapping up to 2 MB of memory
+    
+    ```
+    ----------------
+      Page Table
+    ----+-----------
+    000 | 0xaa201000
+    001 | 0x421e0000
+    002 | 0x5c644000
+    ... | ...
+    511 | 0xfa115000
+    ----+-----------
+    ```
+
+- What about non-contiguous virtual memory? What if we need more than 2 MB of memory?
+
+#### Supporting Non-Contiguous Virtual Memory
+
+- Introducing the multi-level paging structure
+- A **Page Directory** contains 512 **Page Directory Entries**, each mapping a page table, each holding 512 entries, each referring a page of 0x1000 bytes, for a total of 1 GB of addressable virtual memory (`512 * 512 * 0x1000` bytes)
+- **Overhead**
+    - `0x1000` bytes for the PD
+    - `0x1000` bytes (per PT) for each 2 MB of memory
+- **Overhead Reduction**
+    - By setting a special flag, a **PDE** can refer to a 2 MB region of physical memory (instead of a **PT**) (?)
+
+#### What if we need more than 1 GB of RAM?
+
+- A **Page Directory Page Table** contains 512 **Page Directory Pointers** addressing a total of 512 GB of RAM
+- **Overhead**
+    - `0x1000` for the PDPT
+    - `0x1000 * 512` bytes for the PDs
+- **Overhead Reduction**
+    - By setting a special flag, a PDP can refer to a 1 GB region of physical memory (instead of a PD)
+
+- 512 GB is getting small... Modern systems have **4 levels of paging**. A **Page Map Level 4** maps 512 PDPT addressing a theoretical total of 256 TB of RAM
+
+#### A Virtual Address
+
+- Consider `0x7fff47d4c123`. In binary:
+
+    ```
+    011111111 111111101 000111110 101001100 000100100011
+        A         B         C         D         E
+    
+    A index into PML4 (to select PDPT)
+    B index into PDPT (to select PD)
+    C index into PD (to select PT)
+    D index into PT (to select physical page)
+    E index into page (to select physical bytes)
+    ```
+
+#### Process Isolation
+
+- Each process has its **own** PML4. How to find it?
+- The **CR3** register holds the physical location of the PML4
+- **ONLY** accessible in ring0
+- **Side note**: Other control registers exist, setting processor options (including whether we are in 32-bit or 64-bit mode) and lots of other craziness. [References](https://wiki.osdev.org/CPU_Registers_x86)
+
+#### VM Isolation
+
+- How do we isolate multiple virtual machines, the kernels of whom expect to have full access to physical memory?
+- **The Extended Page Table**
+- ANOTHER FREAKING ADDRESS TRANSLATION TABLE???
+- Every VM thinks it has access to physical memory. In reality, each "physical" memory access is translated through the EPT analogous to a virtual memory translation
+    
+    ```
+    EPT PML4 -> EPT PDPT -> EPT PD -> EPT PT
+    ```
+
+#### Hardware support for lookups
+
+- It would be too slow for the kernel to do all of these lookups in software...
+- Introducing the **Memory Management Unit**
+- The MMU does the lookups in haardware. Blazing fast!
+- Resolved addresses are cached in the **Translaton Lookaside Buffer**
+
+#### Other Architectures
+
+- So far, we focused on `x86`, but other architectures are analogous!
+- **ARM** ([full details](https://developer.arm.com/documentation/100940/0101/)): 
+    - `CR3` equivalent: `TTBR0` (for userspace) and `TTBR1` (for kernel addresses)
+    - Translation tables are referred to as Level 0, 1, 2, and 3
+- **Linux**: generic terminology
+    
+    ```
+    PML4 = PGD (Page Global Directory)
+    PDPT = PUD (Page Upper Directory)
+     PD  = PMD (Page Mid-Level Directory)
+     PT  = PT  (Page Table)
+    ```
+
+- Linux *requires* a hardware MMU (although certain forks do not)
+
+#### The Kernel Sees All
+
+- Processes cannot see each other's memory... But the kernel can
+- **The Old Way**: old linuxes could access physical memory via `/dev/mem` as root
+- **The New Way**
+    - If we want to get at physical memory now, we must do it from the kernel
+    - Physical memory is mapped **contiguously** in the kernel's virtual memory space for convenient access. Two kernel macros:
+        - `phys_to_virt()` converts a physical address into a (kernel) virtual address
+        - `virt_to_phys()` converts a (kernel) virtual address into a physical address
+    - These macros are simple address additions and subtractions. **Easy to compile and reverse-engineer**
+
 ### Mitigations
 
 ### Writing Kernel Shellcode
