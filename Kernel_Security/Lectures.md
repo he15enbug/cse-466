@@ -543,4 +543,34 @@
 
 ### Mitigations
 
+- The kernel will get hacked. The Linux Kernel had 149 vulnerabilities (as tracked by CVEs) in 2021 alone. What now?
+
+#### Many Mitigations Available
+
+- Some are familiar:
+    - **Stack canaries** protect the stack
+    - **kASLR** bases the kernel at a random location *at boot*
+    - **Heap/stack regions** are not executable by default
+    - [The kernel's philosophy](https://www.kernel.org/doc/Documentation/security/self-protection.txt)
+- With the expected bypasses:
+    - **Stack canaries**: leak the canary
+    - **kASLR**: leak the kernel base address
+    - **Heap/stack regions**: Return Oriented Programming, ROP
+- Solutions? One crazy idea in kASLR: shuffle functions around
+    - **Function Granular ASLR**: upcoming mitigation to prevent kASLR bypass via trivial address disclosure. [More information](https://lwn.net/Articles/824307/)
+
+#### Kernel-Specific Mitigation: Supervisor Memory Protection
+
+- Many exploits trick the kernel from accessing or executing user-space memory
+- **SMEP.**: prevents kernel-space code from **E**xecuting userspace memory *at all ever*
+- **SMAP.**: prevents kernel-space from even **A**ccessing userspace memory unless the *AC flag* in the `RFLAGS` register is set. Two ring0 instructions, `stac` and `clac`, manage this bit
+- Why separate these? There **are** cases where the kernel needs access to userspace memory (e.g., to access the `path` argument to `open()`). `copy_from_user` sets the AC flag to access userspace
+- [More details](https://wiki.osdev.org/Supervisor_Memory_Protection)
+
+#### Possible Workarounds
+
+- Kernel exploitation is an material art, with new offensive and defensive techniques constantly being developed
+- One technique to keep in mind: 
+    - `run_cmd(char *cmd)`: just yolo-run a command in userspace, as root! Like `system()`, but in the kernel. [Implementation](https://elixir.bootlin.com/linux/latest/ident/run_cmd)
+
 ### Writing Kernel Shellcode
