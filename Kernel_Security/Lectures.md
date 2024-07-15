@@ -574,3 +574,77 @@
     - `run_cmd(char *cmd)`: just yolo-run a command in userspace, as root! Like `system()`, but in the kernel. [Implementation](https://elixir.bootlin.com/linux/latest/ident/run_cmd)
 
 ### Writing Kernel Shellcode
+
+- We used to write assembly code and generate the shellcode. This **userspace** shellcode will not work in the **kernel**
+
+#### Recall: System Calls
+
+- System calls are an interface for **userspace** to talk to **kernelspace**
+- When `syscall` occurs, execution immediately jumps to the `syscall_entry` function in the kernel. This function assumes that it is being called from userspace. If we call it from kernelspace, chaos will ensue!
+
+#### Solution?
+
+- We are inside the kernel, act on kernel APIs and kernel objects to achieve our goals
+- **Privilege Escalation**: `commit_creds(prepare_kernel_cred(0));`
+- **Seccomp Escape**: `current_task_struct->thread_info.flags &= ~(1<<TIF_SECCOMP);`
+- **Command Execution**: `run_cmd("/path/to/my/command");`
+- None of these involve system calls. They require:
+    1. Finding `current_task_struct` and offsets into its methods and members
+    2. Calling kernel API functions such as `prepare_kernel_cred`, `commit_creds`, and `run_cmd`
+
+#### Invoking Kernel APIs
+
+- Kernel APIs are functions. We must `call` (not `syscall`) them from within the kernel. But call what?
+    
+    ```shell
+    $ pwn asm -c amd64 "mov rdi, 0; call prepare_kernel_creds"
+    [ERROR] Shellcode contains relocations:
+    ...
+    ```
+
+#### Locating Kernel APIs
+
+- How to figure out where `prepare_kernel_cred`, `commit_creds`, and `run_cmd` are in memory?
+- **kASLR off**: get the addresses from `/proc/kallsyms` on an *identical* system. Has to be done as `root`. `grep "prepare_kernel_cred" /proc/kallsyms`
+- **kASLR on**(real-world systems): we will need to leak a kernel address and calculate the offset, just like in userpsace ASLR...
+
+#### Calling Kernel APIs
+
+- Once we have found the APIs, we will need to call them. Again, use `call`, not `syscall`
+- The normal `call` instruction takes a relative 32-bit offset to shift execution by. To jump to a specific absolute location, without worrying about where our shellcode is in relation to the rest of the kernel, use the *absolute* form of `call`:
+
+    ```
+    mov rax, 0xffff414142424242
+    call rax <-- this will jump to 0xffff414142424242
+    ```
+
+#### Seccomp challenge: finding the current task struct
+
+- The kernel points the *segment register* `gs` to the current task struct! In `C` kernel development, there is a shorthand macro for this: `current`... But how do we do the same in our shellcode?
+
+#### Figuring out offsets, etc
+
+- The kernel is WAY too complex to figure out offsets manually. Best option:
+1. Write a kernel module in `C` with the actions we want our shellcode to do
+2. Build it for the kernel we want to attack (e.g., using the `vm build` command in pwn.college)
+3. Reverse-engineer it to see how these actions work in assembly
+4. Re-implement that assembly in our shellcode
+- This insane process will preserve our sanity
+
+#### Cleaning Up
+
+- **Userspace** shellcode can happily segfault when it's done
+- **Kernel** shellcode can have serious repercussions when it crashes
+- Try to have our shellcode finish cleanly
+- **Example**: if we called our shellcode by hijacking a function pointer, have it act like a function and return when it's done
+
+#### Debugging
+
+- Most attacks will have a userspace program (`./attack`) to inject payload into the kernel. Where do we run `gdb` and what do we attach it to?
+- **Inside the VM.** Run `gdb ./attack` inside the VM. 
+    - Easier to debug our userspace component. 
+    - Completely blind as to what's going on in the kernel (cannot step "into" system calls or other kernel interactions)!
+    - Typical outcome: `syscall` instructions appearing to `SIGSEGV`/`SIGKILL`/etc.
+- **Outside the VM.** Attack to qemu itself with `gdb` (in the Dojo, `vm debug`)
+    - Harder to debug userspace component (no symbols, etc)
+    - Only way to debug the kernel itself: step "into" `syscall`, trace through the kernel to our heart's content
