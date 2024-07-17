@@ -28,8 +28,8 @@
 
 ### Race Conditions **[8/22]**
 
-### Kernel Security
+### Kernel Security **[0/24]**
 
-### Return Oriented Programming
+### Return Oriented Programming **[0/30]**
 
 ### System Exploitation
