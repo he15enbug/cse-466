@@ -41,6 +41,22 @@
 
 ## Binary Lego
 
+### ROP by induction
+
+- **Step 0**: overflow the stack
+- **Step n**: by controlling the return address, we trigger an ROP gadget: `0x004005f3: pop rdi; ret`
+- **Step n+1**: when the gadget returns, it returns to an address we control (i.e., the next gadget)
+
+### Take-away: ROP is *basically* shellcode
+
+- A ROP gadget is equivalent to shellcode, but the instructions available to us are WEIRD
+- Hacker term: Programming the [Weird Machine](https://en.wikipedia.org/wiki/Weird_machine), coined in 2009 by Sergey Bratus
+- Related concept: [accidental turing completeness](https://beza1e1.tuxen.de/articles/accidentally_turing_complete.html)
+- Fundamentally:
+    - We get to choose from a set of bizarre meta-instructions already in memory
+    - We can chain instructions using `ret` (and addresses on the stack)
+    - Same lego pieces, new result
+
 ## Techniques
 
 ## Complications
